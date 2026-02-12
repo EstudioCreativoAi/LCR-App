@@ -1,0 +1,29 @@
+{
+  "name": "lcr-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@expo/metro-runtime": "~6.1.2",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/datetimepicker": "^8.6.0",
+    "@react-native-community/slider": "^5.1.2",
+    "@shopify/flash-list": "^2.2.2",
+    "@supabase/supabase-js": "^2.95.3",
+    "@types/react": "~19.1.10",
+    "@types/react-native": "^0.72.8",
+    "expo": "^54.0.33",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-url-polyfill": "^3.0.0",
+    "react-native-web": "^0.21.0",
+    "typescript": "~5.9.2"
+  }
+}

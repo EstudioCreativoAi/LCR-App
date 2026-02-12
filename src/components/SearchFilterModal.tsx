@@ -1,0 +1,448 @@
+import React, { useState } from 'react'
+import {
+  View,
+  Text,
+  Modal,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Pressable,
+} from 'react-native'
+import Slider from '@react-native-community/slider'
+import DateTimePicker from '@react-native-community/datetimepicker'
+
+export interface SearchFilters {
+  priceMin: number
+  priceMax: number
+  bedrooms: number | null
+  moveInDate: Date | null
+}
+
+interface SearchFilterModalProps {
+  visible: boolean
+  onClose: () => void
+  onApply: (filters: SearchFilters) => void
+  initialFilters?: SearchFilters
+}
+
+const DEFAULT_FILTERS: SearchFilters = {
+  priceMin: 0,
+  priceMax: 100000,
+  bedrooms: null,
+  moveInDate: null,
+}
+
+export default function SearchFilterModal({
+  visible,
+  onClose,
+  onApply,
+  initialFilters = DEFAULT_FILTERS,
+}: SearchFilterModalProps) {
+  const [priceMin, setPriceMin] = useState(initialFilters.priceMin)
+  const [priceMax, setPriceMax] = useState(initialFilters.priceMax)
+  const [selectedBedrooms, setSelectedBedrooms] = useState<number | null>(
+    initialFilters.bedrooms
+  )
+  const [moveInDate, setMoveInDate] = useState<Date | null>(
+    initialFilters.moveInDate
+  )
+  const [showDatePicker, setShowDatePicker] = useState(false)
+
+  const handleReset = () => {
+    setPriceMin(DEFAULT_FILTERS.priceMin)
+    setPriceMax(DEFAULT_FILTERS.priceMax)
+    setSelectedBedrooms(DEFAULT_FILTERS.bedrooms)
+    setMoveInDate(DEFAULT_FILTERS.moveInDate)
+  }
+
+  const handleApply = () => {
+    onApply({
+      priceMin,
+      priceMax,
+      bedrooms: selectedBedrooms,
+      moveInDate,
+    })
+    onClose()
+  }
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('es-MX', {
+      style: 'currency',
+      currency: 'MXN',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(price)
+  }
+
+  const formatDate = (date: Date | null) => {
+    if (!date) return 'Select date'
+    return date.toLocaleDateString('es-MX', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  }
+
+  const bedroomOptions = [1, 2, 3]
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Filter Properties</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Price Range Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Price Range (MXN)</Text>
+            <View style={styles.priceDisplay}>
+              <Text style={styles.priceText}>{formatPrice(priceMin)}</Text>
+              <Text style={styles.priceSeparator}>—</Text>
+              <Text style={styles.priceText}>{formatPrice(priceMax)}</Text>
+            </View>
+
+            {/* Min Price Slider */}
+            <View style={styles.sliderContainer}>
+              <Text style={styles.sliderLabel}>Minimum</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={100000}
+                step={1000}
+                value={priceMin}
+                onValueChange={setPriceMin}
+                minimumTrackTintColor="#007AFF"
+                maximumTrackTintColor="#E5E5EA"
+                thumbTintColor="#007AFF"
+              />
+              <Text style={styles.sliderValue}>{formatPrice(priceMin)}</Text>
+            </View>
+
+            {/* Max Price Slider */}
+            <View style={styles.sliderContainer}>
+              <Text style={styles.sliderLabel}>Maximum</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={priceMin}
+                maximumValue={200000}
+                step={1000}
+                value={priceMax}
+                onValueChange={setPriceMax}
+                minimumTrackTintColor="#007AFF"
+                maximumTrackTintColor="#E5E5EA"
+                thumbTintColor="#007AFF"
+              />
+              <Text style={styles.sliderValue}>{formatPrice(priceMax)}</Text>
+            </View>
+          </View>
+
+          {/* Bedrooms Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Bedrooms</Text>
+            <View style={styles.bedroomButtons}>
+              {bedroomOptions.map((num) => (
+                <TouchableOpacity
+                  key={num}
+                  style={[
+                    styles.bedroomButton,
+                    selectedBedrooms === num && styles.bedroomButtonActive,
+                  ]}
+                  onPress={() =>
+                    setSelectedBedrooms(selectedBedrooms === num ? null : num)
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.bedroomButtonText,
+                      selectedBedrooms === num &&
+                        styles.bedroomButtonTextActive,
+                    ]}
+                  >
+                    {num}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={[
+                  styles.bedroomButton,
+                  selectedBedrooms === 4 && styles.bedroomButtonActive,
+                ]}
+                onPress={() =>
+                  setSelectedBedrooms(selectedBedrooms === 4 ? null : 4)
+                }
+              >
+                <Text
+                  style={[
+                    styles.bedroomButtonText,
+                    selectedBedrooms === 4 && styles.bedroomButtonTextActive,
+                  ]}
+                >
+                  3+
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Move-in Date Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Move-in Date</Text>
+              {moveInDate && (
+                <TouchableOpacity onPress={() => setMoveInDate(null)}>
+                  <Text style={styles.clearText}>Clear</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            <TouchableOpacity
+              style={styles.datePickerButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.datePickerButtonText}>
+                {formatDate(moveInDate)}
+              </Text>
+              <Text style={styles.calendarIcon}>📅</Text>
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={moveInDate || new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minimumDate={new Date()}
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(Platform.OS === 'ios')
+                  if (selectedDate) {
+                    setMoveInDate(selectedDate)
+                  }
+                }}
+              />
+            )}
+            
+            {Platform.OS === 'ios' && showDatePicker && (
+              <TouchableOpacity 
+                style={styles.doneButton}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={styles.resetButton}
+              onPress={handleReset}
+            >
+              <Text style={styles.resetButtonText}>Reset</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.applyButton}
+              onPress={handleApply}
+            >
+              <Text style={styles.applyButtonText}>Apply Filters</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  )
+}
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    paddingHorizontal: 20,
+    maxHeight: '90%',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000000',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 20,
+    color: '#8E8E93',
+    fontWeight: '600',
+  },
+  section: {
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000000',
+    marginBottom: 12,
+  },
+  priceDisplay: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+  },
+  priceText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#007AFF',
+  },
+  priceSeparator: {
+    fontSize: 20,
+    color: '#8E8E93',
+    marginHorizontal: 12,
+  },
+  sliderContainer: {
+    marginBottom: 16,
+  },
+  sliderLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
+  },
+  sliderValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000000',
+    textAlign: 'right',
+    marginTop: -4,
+  },
+  bedroomButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  bedroomButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  bedroomButtonActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  bedroomButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000000',
+  },
+  bedroomButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  datePickerButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  datePickerButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#000000',
+  },
+  calendarIcon: {
+    fontSize: 18,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  clearText: {
+    fontSize: 14,
+    color: '#FF3B30',
+    fontWeight: '600',
+  },
+  doneButton: {
+    alignSelf: 'flex-end',
+    padding: 8,
+    marginTop: 8,
+  },
+  doneButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  resetButton: {
+    flex: 1,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resetButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  applyButton: {
+    flex: 2,
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+})
