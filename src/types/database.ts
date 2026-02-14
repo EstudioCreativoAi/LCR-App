@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -61,6 +61,12 @@ export interface Database {
         Row: Rating
         Insert: RatingInsert
         Update: RatingUpdate
+        Relationships: []
+      }
+      audit_logs: {
+        Row: AuditLog
+        Insert: AuditLogInsert
+        Update: AuditLogUpdate
         Relationships: []
       }
     }
@@ -368,5 +374,32 @@ export interface RatingUpdate {
   category?: RatingCategory
   rating?: number
   comment?: string | null
+  created_at?: string
+}
+
+export interface AuditLog {
+  id: string
+  actor_id: string | null
+  action: string
+  target_id: string | null
+  metadata: Json
+  created_at: string
+}
+
+export interface AuditLogInsert {
+  id?: string
+  actor_id?: string | null
+  action: string
+  target_id?: string | null
+  metadata?: Json
+  created_at?: string
+}
+
+export interface AuditLogUpdate {
+  id?: string
+  actor_id?: string | null
+  action?: string
+  target_id?: string | null
+  metadata?: Json
   created_at?: string
 }
