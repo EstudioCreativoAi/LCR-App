@@ -1,3 +1,8 @@
+-- Ensure full_name and avatar_url exist (may have been added in earlier migration)
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS full_name TEXT,
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
 -- Add new profile fields for Edit Profile feature
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS first_name TEXT,
@@ -6,7 +11,7 @@ ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS phone_number TEXT,
   ADD COLUMN IF NOT EXISTS bio TEXT;
 
--- Backfill first_name / last_name from existing full_name
+-- Backfill first_name / last_name from existing full_name (if any data exists)
 UPDATE public.profiles
 SET
   first_name = split_part(full_name, ' ', 1),
@@ -31,6 +36,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS sync_full_name_trigger ON public.profiles;
 CREATE TRIGGER sync_full_name_trigger
 BEFORE INSERT OR UPDATE ON public.profiles
 FOR EACH ROW EXECUTE FUNCTION public.sync_full_name();
