@@ -1,199 +1,245 @@
-# PLAN: Deposit Payment Flow (Stripe + Supabase Edge Functions)
+# PLAN: Simple Lease Signature (Sign on Glass + PDF Generation)
 
 **Status:** Awaiting approval
-**Scope:** End-to-end deposit payment: Stripe PaymentIntent via Edge Function, Payment Sheet UI, post-payment state machine, celebration screen
+**Scope:** Signature pad capture, PDF generation from HTML template, Supabase Storage upload, in-app PDF viewer, auto-navigate to payment
 
 ---
 
 ## 1. Install dependencies
 
 ```bash
-npm install @stripe/stripe-react-native
+npm install react-signature-canvas html2pdf.js
+npm install --save-dev @types/react-signature-canvas
 ```
 
-No Expo config plugin needed for web-only (Stripe React Native supports web via `@stripe/stripe-js` under the hood). For native builds later, the Expo config plugin would be added to `app.json`.
+**Why these packages:**
+- `react-signature-canvas` — React DOM canvas-based signature pad. Works on web (our primary platform). 383k weekly downloads, TypeScript support.
+- `html2pdf.js` — Client-side HTML → PDF conversion (html2canvas + jsPDF under the hood). No server needed.
+
+**NOT using** `react-native-signature-canvas` (native-only, uses WebView), `expo-print` (web = browser print dialog only), or `expo-sharing` (native-only).
 
 ---
 
-## 2. Supabase migration: `20260214200000_create_payments_table.sql`
+## 2. Supabase migration: `20260214210000_lease_signature_fields.sql`
 
-### 2a. Create `payments` table
+### 2a. Add signature/document columns to `leases`
 
 ```sql
-CREATE TABLE public.payments (
-  id UUID NOT NULL DEFAULT gen_random_uuid(),
-  lease_id UUID NOT NULL REFERENCES public.leases(id) ON DELETE CASCADE,
-  lead_id UUID REFERENCES public.leads(id) ON DELETE SET NULL,
-  payer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  recipient_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  amount_mxn NUMERIC(12, 2) NOT NULL CHECK (amount_mxn > 0),
-  payment_type TEXT NOT NULL DEFAULT 'deposit',  -- deposit | rent | commission
-  status TEXT NOT NULL DEFAULT 'pending',         -- pending | completed | failed | refunded
-  stripe_payment_intent_id TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  PRIMARY KEY (id)
-);
-
-ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leases
+  ADD COLUMN IF NOT EXISTS signature_url TEXT,
+  ADD COLUMN IF NOT EXISTS document_url TEXT,
+  ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ;
 ```
 
-### 2b. RLS policies
+- `signature_url` — URL of the PNG signature image in storage
+- `document_url` — URL of the final signed PDF in storage
+- `signed_at` — timestamp when renter signed
 
-- Payers can view their own payments
-- Recipients can view payments sent to them
-- Service role (Edge Function) can INSERT/UPDATE
-
-### 2c. Add `'Deposit Paid'` to `lead_status` enum
+### 2b. Create `leases` storage bucket
 
 ```sql
-ALTER TYPE public.lead_status ADD VALUE IF NOT EXISTS 'Deposit Paid' AFTER 'Lease Sent';
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('leases', 'leases', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Renter or landlord can read lease documents for their leases
+CREATE POLICY "Lease parties can read documents"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'leases'
+    AND auth.uid() IN (
+      SELECT renter_id FROM public.leases WHERE id::text = (storage.foldername(name))[1]
+      UNION
+      SELECT p.landlord_id FROM public.leases l
+        JOIN public.properties p ON l.property_id = p.id
+        WHERE l.id::text = (storage.foldername(name))[1]
+    )
+  );
+
+-- Service role + authenticated users can upload to their own lease folder
+CREATE POLICY "Authenticated users can upload lease documents"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'leases' AND auth.role() = 'authenticated');
 ```
 
-### 2d. Indexes
-
-```sql
-CREATE INDEX idx_payments_lease_id ON public.payments(lease_id);
-CREATE INDEX idx_payments_payer_id ON public.payments(payer_id);
-CREATE INDEX idx_payments_status ON public.payments(status);
-```
+**Storage path:** `{lease_id}/signature.png` and `{lease_id}/lease-signed.pdf`
 
 ---
 
-## 3. Supabase Edge Function: `create-payment-intent`
+## 3. HTML Lease Template
 
-**Path:** `supabase/functions/create-payment-intent/index.ts`
+**File:** `src/templates/leaseTemplate.ts`
 
-### Input (POST body)
-```json
-{
-  "lease_id": "uuid",
-  "payer_id": "uuid"
-}
+A single exported function that returns an HTML string with CSS styling, filled from lease/property/profile data.
+
+### Template structure
+```
+┌─────────────────────────────────────┐
+│  LOS CABOS RESIDENTIAL LEASE        │
+│  AGREEMENT                          │
+│                                     │
+│  Date: February 14, 2026            │
+│                                     │
+│  PARTIES                            │
+│  Landlord: Carlos Rodriguez         │
+│  Tenant: Mario Polanco              │
+│                                     │
+│  PROPERTY                           │
+│  123 Calle Marina, Cabo San Lucas   │
+│                                     │
+│  TERMS                              │
+│  Monthly Rent: $25,000 MXN          │
+│  Security Deposit: $25,000 MXN      │
+│  Start Date: March 1, 2026          │
+│  End Date: February 28, 2027        │
+│  Duration: 12 months                │
+│                                     │
+│  STANDARD CLAUSES (6-7 paragraphs)  │
+│  1. Rent Payment                    │
+│  2. Security Deposit                │
+│  3. Property Condition              │
+│  4. Maintenance                     │
+│  5. Termination                     │
+│  6. Governing Law (BCS, Mexico)     │
+│                                     │
+│  SIGNATURES                         │
+│  Landlord: [Approved via platform]  │
+│  Tenant:   [SIGNATURE IMAGE]        │
+│  Date Signed: February 14, 2026     │
+└─────────────────────────────────────┘
 ```
 
-### Logic
-1. Fetch the lease (get `deposit_amount`, `property_id`, `renter_id`)
-2. Verify `payer_id === lease.renter_id` (security check)
-3. Check no existing completed deposit payment for this lease
-4. Call Stripe API: `stripe.paymentIntents.create({ amount: deposit_amount * 100, currency: 'mxn' })`
-5. Insert a `payments` record with `status: 'pending'` and `stripe_payment_intent_id`
-6. Return `{ clientSecret, paymentId }` to the client
-
-### Environment variables (Supabase secrets)
-- `STRIPE_SECRET_KEY` — Stripe secret key (set via `supabase secrets set`)
-
-### Stripe SDK in Deno
-```ts
-import Stripe from 'https://esm.sh/stripe@14?target=deno'
-```
+### Placeholders filled from DB
+- `{{LANDLORD_NAME}}` — `profiles.full_name` via `properties.landlord_id`
+- `{{RENTER_NAME}}` — `profiles.full_name` via `leases.renter_id`
+- `{{PROPERTY_ADDRESS}}` — `properties.address`, `properties.city`
+- `{{MONTHLY_RENT}}` — `leases.monthly_rent` (formatted MXN)
+- `{{DEPOSIT_AMOUNT}}` — `leases.deposit_amount` (formatted MXN)
+- `{{START_DATE}}` — `leases.start_date`
+- `{{END_DATE}}` — `leases.end_date`
+- `{{LEASE_MONTHS}}` — calculated from dates
+- `{{SIGNATURE_IMAGE}}` — base64 PNG of renter's signature
+- `{{SIGNED_DATE}}` — current date
 
 ---
 
-## 4. Supabase Edge Function: `confirm-payment`
+## 4. New route: `app/sign/[leaseId].tsx`
 
-**Path:** `supabase/functions/confirm-payment/index.ts`
+Full-screen signing flow (NOT a modal — this is a legal action).
 
-Called by the client AFTER Stripe Payment Sheet confirms success. (Belt-and-suspenders — the real source of truth would be a Stripe webhook in production, but for MVP this client-confirmed flow is sufficient.)
-
-### Input (POST body)
-```json
-{
-  "payment_id": "uuid",
-  "payment_intent_id": "pi_xxx"
-}
-```
-
-### Logic (all in a single transaction-like sequence)
-1. Verify the PaymentIntent status via Stripe API (`stripe.paymentIntents.retrieve`)
-2. If `status === 'succeeded'`:
-   a. Update `payments` record → `status: 'completed'`
-   b. Fetch the lease to get `property_id`, `lead_id`, `agent_id`
-   c. Update `leads` → `status: 'Deposit Paid'` (for the matching lead)
-   d. Update `properties` → `status: 'paused'` (remove from feed)
-   e. If `agent_id` exists → INSERT into `commissions` (10% of deposit)
-   f. INSERT two `notifications`:
-      - Renter: "Welcome home! Your deposit for [address] has been confirmed."
-      - Landlord: "Deposit received! [renter_name] has paid for [address]."
-3. Return `{ success: true, payment }` or error
-
----
-
-## 5. New route: `app/pay/[leaseId].tsx`
-
-A full-screen payment route (NOT a modal — this is a serious financial action that deserves full attention).
-
-**URL:** `/pay/abc-123`
+**URL:** `/sign/abc-123`
 
 ### Screen structure (3 phases)
 
-#### Phase 1: Payment Summary Card
+#### Phase 1: Lease Preview
 ```
-┌─────────────────────────────┐
-│  [Property Hero Image]       │
-│                              │
-│  123 Calle Marina, Cabo      │
-│  ─────────────────────       │
-│  SECURITY DEPOSIT            │
-│  $25,000 MXN                 │
-│  ─────────────────────       │
-│  Monthly Rent    $25,000     │
-│  Lease Term      12 months   │
-│  Landlord        Carlos R.   │
-│  ─────────────────────       │
-│                              │
-│  [ Pay Deposit — $25,000 ]   │
-│                              │
-│  🔒 Secured by Stripe        │
-└─────────────────────────────┘
+┌─────────────────────────────────┐
+│  ← Back                        │
+│                                 │
+│  📄 Your Lease Agreement        │
+│  123 Calle Marina, Cabo        │
+│                                 │
+│  ┌───────────────────────────┐  │
+│  │  [Scrollable lease text]  │  │
+│  │  rendered from HTML       │  │
+│  │  template (read-only)     │  │
+│  └───────────────────────────┘  │
+│                                 │
+│  ☐ I have read and agree to    │
+│    the terms of this lease      │
+│                                 │
+│  [ Sign Lease ]                 │
+│                                 │
+└─────────────────────────────────┘
 ```
 
-- White card on sand background
-- Property photo at top (from `properties.photos[0]`)
-- Amount in large bold Poppins
-- Breakdown details below
-- CTA button triggers Stripe Payment Sheet
+- Scrollable lease text rendered via `dangerouslySetInnerHTML` in a web view div
+- Checkbox must be checked before "Sign Lease" is enabled
+- Tapping "Sign Lease" opens Phase 2
 
-#### Phase 2: Stripe Payment Sheet
-- Triggered by `presentPaymentSheet()` from `@stripe/stripe-react-native`
-- Native UI handles card input, Apple Pay, Google Pay
-- On success → call `confirm-payment` Edge Function → transition to Phase 3
+#### Phase 2: Signature Pad (Landscape Modal)
+```
+┌─────────────────────────────────────────────────┐
+│                                                   │
+│  Sign below                           Clear  Done │
+│  ┌───────────────────────────────────────────┐   │
+│  │                                           │   │
+│  │     (react-signature-canvas)              │   │
+│  │     white canvas, black ink               │   │
+│  │                                           │   │
+│  └───────────────────────────────────────────┘   │
+│                                                   │
+└─────────────────────────────────────────────────────┘
+```
 
-#### Phase 3: Cabo Celebration Screen
-Full-screen takeover:
-- **Background:** `LinearGradient` sunset (`#FF8C00` → `#FF0080`)
-- **Animation sequence:**
-  1. A key icon scales in (spring) at center
-  2. Key morphs/fades into a house icon (cross-fade with scale)
-  3. Confetti particles rain from top (custom Reanimated particle system — 30 small colored circles with random X drift and gravity)
-  4. Text fades in: "Welcome Home, [FirstName]." (large) + "Your Cabo adventure begins." (subtitle)
-- **Auto-dismiss:** After 4 seconds, show a "Continue" button that navigates to `/(tabs)/leases`
-- **Fallback:** Tapping anywhere also dismisses
+- Full-screen overlay with `transform: rotate(90deg)` on mobile web to simulate landscape
+- White canvas, black pen stroke (penColor: '#000', minWidth: 1.5, maxWidth: 3)
+- "Clear" button resets canvas
+- "Done" button captures signature as base64 PNG via `toDataURL()`
+- Validates canvas is not empty before allowing "Done"
+
+#### Phase 3: Processing + Redirect
+After "Done":
+1. Show full-screen loading overlay: "Generating your lease document..."
+2. Generate PDF via `html2pdf.js` (fills template with data + signature)
+3. Upload signature PNG to `leases/{lease_id}/signature.png`
+4. Upload PDF to `leases/{lease_id}/lease-signed.pdf`
+5. Update `leases` row: `signature_url`, `document_url`, `signed_at`, `status: 'active'`
+6. Auto-navigate to `/pay/{leaseId}` (deposit payment screen)
 
 ---
 
-## 6. Integration points (wiring it up)
+## 5. Lease Document Service
 
-### 6a. Auto-navigate after lease execution
-In the component that calls `executeLease()` (LeadDashboard), after success:
+**File:** `src/services/leaseDocumentService.ts`
+
+### Functions
+
 ```ts
-router.push(`/pay/${leaseId}`)
+generateLeaseHtml(data: LeaseTemplateData): string
+// Fills the HTML template with lease/property/profile data + signature
+
+generateLeasePdf(html: string): Promise<Blob>
+// Uses html2pdf.js to convert HTML → PDF blob
+
+uploadSignature(leaseId: string, base64Png: string): Promise<string>
+// Uploads signature PNG to Supabase Storage, returns public URL
+
+uploadLeasePdf(leaseId: string, pdfBlob: Blob): Promise<string>
+// Uploads PDF to Supabase Storage, returns public URL
+
+finalizeLease(leaseId: string, signatureUrl: string, documentUrl: string): Promise<void>
+// Updates leases row: signature_url, document_url, signed_at, status → 'active'
 ```
 
-### 6b. Fallback "Pay Deposit" on RenterLeaseDashboard
-Replace the stub `handlePayNextMonth` button:
-- If lease has no completed deposit payment → show "Pay Deposit" button
-- On press → `router.push(`/pay/${lease.id}`)`
-- If deposit already paid → show "Deposit Paid ✓" badge instead
+---
 
-### 6c. Stripe initialization
-In `app/_layout.tsx`, wrap the app with `<StripeProvider>`:
+## 6. Integration points
+
+### 6a. RenterLeaseDashboard — "Sign Lease" button
+
+When `lease.status === 'sent_for_signature'`:
+- Show prominent "Sign Lease" CTA button (primary color, above the deposit section)
+- On press → `router.push(`/sign/${lease.id}`)`
+
+When `lease.status === 'active'` AND `lease.document_url` exists:
+- Show "View Signed Lease" button
+- On press → open PDF in new browser tab (`window.open(document_url, '_blank')`)
+
+### 6b. Auto-navigate to payment after signing
+
+After `finalizeLease()` succeeds:
+```ts
+router.replace(`/pay/${leaseId}`)
+```
+
+The flow becomes: **Sign Lease → Pay Deposit → Cabo Celebration**
+
+### 6c. Stack route in `app/_layout.tsx`
+
+Add:
 ```tsx
-<StripeProvider publishableKey={EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY}>
-  <SessionProvider>
-    <RootLayoutNav />
-  </SessionProvider>
-</StripeProvider>
+<Stack.Screen name="sign/[leaseId]" options={{ headerShown: false, gestureEnabled: false }} />
 ```
 
 ---
@@ -202,114 +248,96 @@ In `app/_layout.tsx`, wrap the app with `<StripeProvider>`:
 
 | File | Purpose |
 |------|---------|
-| `supabase/migrations/20260214200000_create_payments_table.sql` | payments table + enum update |
-| `supabase/functions/create-payment-intent/index.ts` | Edge Function: creates Stripe PaymentIntent |
-| `supabase/functions/confirm-payment/index.ts` | Edge Function: post-payment state machine |
-| `app/pay/[leaseId].tsx` | Payment screen (summary + celebration) |
-| `src/services/paymentService.ts` | Client-side: create intent, confirm payment |
-| `src/components/CaboCelebration.tsx` | Reanimated confetti + welcome home animation |
+| `supabase/migrations/20260214210000_lease_signature_fields.sql` | Add signature columns + leases bucket |
+| `src/templates/leaseTemplate.ts` | HTML lease template with placeholder injection |
+| `src/services/leaseDocumentService.ts` | PDF generation, upload, finalize |
+| `app/sign/[leaseId].tsx` | Signature flow screen (preview → sign → process) |
 
 ## 8. Modified files
 
 | File | Change |
 |------|--------|
-| `package.json` | Add `@stripe/stripe-react-native` |
-| `app/_layout.tsx` | Wrap with `<StripeProvider>` |
-| `app/_layout.tsx` (Stack) | Add `pay/[leaseId]` route |
-| `src/types/database.ts` | Add `Payment` interface + update `LeadStatus` |
-| `src/components/RenterLeaseDashboard.tsx` | Replace stub "Pay" button with real deposit CTA |
-| `src/components/LeadDashboard.tsx` | After `executeLease` success → navigate to `/pay/[leaseId]` |
+| `package.json` | Add `react-signature-canvas`, `html2pdf.js` |
+| `app/_layout.tsx` | Add `sign/[leaseId]` route |
+| `src/types/database.ts` | Add `signature_url`, `document_url`, `signed_at` to Lease |
+| `src/components/RenterLeaseDashboard.tsx` | Add "Sign Lease" / "View Signed Lease" buttons |
 
 ---
 
 ## 9. Execution order
 
-1. `npm install @stripe/stripe-react-native`
-2. Create migration `20260214200000_create_payments_table.sql`
-3. Push migration: `npx supabase db push`
-4. Add `Payment` type to `src/types/database.ts`
-5. Create `src/services/paymentService.ts`
-6. Create Edge Function `supabase/functions/create-payment-intent/index.ts`
-7. Create Edge Function `supabase/functions/confirm-payment/index.ts`
-8. Deploy Edge Functions: `npx supabase functions deploy create-payment-intent` + `confirm-payment`
-9. Build `src/components/CaboCelebration.tsx` (confetti + animation)
-10. Build `app/pay/[leaseId].tsx` (summary card + Stripe Sheet + celebration)
-11. Update `app/_layout.tsx` with StripeProvider + new route
-12. Update `RenterLeaseDashboard.tsx` (replace stub Pay button)
-13. Update `LeadDashboard.tsx` (auto-navigate after lease execution)
-14. Build verify: `npx expo export --platform web`
+1. `npm install react-signature-canvas html2pdf.js`
+2. `npm install --save-dev @types/react-signature-canvas`
+3. Create migration `20260214210000_lease_signature_fields.sql`
+4. Push migration: `npx supabase db push`
+5. Update `src/types/database.ts` — add new Lease fields
+6. Create `src/templates/leaseTemplate.ts` — HTML template
+7. Create `src/services/leaseDocumentService.ts` — PDF gen + upload
+8. Create `app/sign/[leaseId].tsx` — signature flow screen
+9. Update `app/_layout.tsx` — add sign route
+10. Update `src/components/RenterLeaseDashboard.tsx` — Sign Lease + View buttons
+11. Build verify: `npx expo export --platform web`
 
 ---
 
-## 10. Environment variables needed
+## 10. Demo mode
 
-| Variable | Where | Value |
-|----------|-------|-------|
-| `STRIPE_SECRET_KEY` | Supabase secrets | `sk_test_...` or `sk_live_...` |
-| `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Vercel env + `.env` | `pk_test_...` or `pk_live_...` |
-
-Set via:
-```bash
-npx supabase secrets set STRIPE_SECRET_KEY=sk_test_xxx
-# Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to Vercel and local .env
-```
+The signature flow detects `isDemo` and:
+- Shows the lease preview with mock data (demo landlord, demo property)
+- Signature pad works normally (real canvas capture)
+- Skips Supabase upload (no storage calls)
+- Simulates 1.5s processing delay
+- Still auto-navigates to `/pay/{leaseId}` (which also has demo mode)
 
 ---
 
-## 11. Post-payment state machine (visual)
+## 11. Complete user flow (visual)
 
 ```
-Renter taps "Pay Deposit"
+Landlord moves lead to "Lease Sent"
   │
-  ├─► Client calls create-payment-intent Edge Function
-  │     └─► Returns clientSecret
+  ├─► lease-execution Edge Function creates lease record
+  │     └─► status: 'sent_for_signature'
   │
-  ├─► Client opens Stripe Payment Sheet (clientSecret)
-  │     └─► User enters card / Apple Pay / Google Pay
+  ├─► Renter sees "Sign Lease" button on dashboard
+  │     └─► Taps button → /sign/{leaseId}
   │
-  ├─► Stripe confirms payment
-  │     └─► Client calls confirm-payment Edge Function
-  │           ├─► payments.status → 'completed'
-  │           ├─► leads.status → 'Deposit Paid'
-  │           ├─► properties.status → 'paused'
-  │           ├─► commissions INSERT (if agent, 10% of deposit)
-  │           ├─► notification → renter ("Welcome home!")
-  │           └─► notification → landlord ("Deposit received!")
+  ├─► Phase 1: Lease Preview (scrollable text)
+  │     └─► Reads terms, checks "I agree", taps "Sign Lease"
   │
-  └─► Client shows Cabo Celebration screen
-        └─► "Continue" → /(tabs)/leases
+  ├─► Phase 2: Signature Pad (landscape)
+  │     └─► Signs with finger/mouse, taps "Done"
+  │
+  ├─► Phase 3: Processing
+  │     ├─► Generate PDF with signature embedded
+  │     ├─► Upload signature.png + lease-signed.pdf to Storage
+  │     ├─► Update lease: status → 'active', signed_at, urls
+  │     └─► Auto-navigate to /pay/{leaseId}
+  │
+  └─► Deposit Payment Flow (already built)
+        └─► Pay → Cabo Celebration → Dashboard
 ```
 
 ---
 
 ## 12. What this plan does NOT include
 
-- **Stripe Connect / landlord payouts** — deferred to V2
-- **Recurring rent payments** — deferred to V2
-- **Stripe webhooks** — MVP uses client-confirmed flow; webhook hardening is V2
-- **Refund flow** — not in MVP scope
-- **Receipt PDF generation** — payment record in DB is sufficient for MVP
-- **PayPal / bank transfer** — Stripe-only for MVP
+- **Landlord signature** — deferred to V2 (landlord's "Send" = approval)
+- **Custom lease text editing** — V2 (all leases use same template)
+- **Email delivery of PDF** — V2 (renters can download/share manually)
+- **Multiple lease templates** — V2 (one standard residential template)
+- **Notarization / legal e-sign compliance** — V2
+- **Native app signature** — web-only for now; native would use `react-native-signature-canvas`
 
 ---
 
-## 13. Demo mode
-
-The payment flow will detect `isDemo` and skip the real Stripe call:
-- Show the summary card with mock data
-- "Pay" button simulates a 2-second loading delay
-- Immediately show the Cabo Celebration screen
-- No Edge Function calls, no DB writes
-
----
-
-## Risks & mitigations
+## 13. Risks & mitigations
 
 | Risk | Mitigation |
 |------|-----------|
-| `@stripe/stripe-react-native` web support | Uses `@stripe/stripe-js` on web automatically; Payment Sheet works cross-platform |
-| Stripe API key leaks | Secret key is ONLY in Supabase Edge Function env; publishable key is safe for client |
-| Double payment (user clicks twice) | Edge Function checks for existing completed payment before creating intent |
-| Payment succeeds but confirm-payment fails | Stripe webhook (V2) will catch this; for MVP the payment record stays `pending` and can be manually reconciled |
-| `lead_status` enum alteration | `ADD VALUE IF NOT EXISTS` is safe and non-blocking in Postgres |
-| MXN centavos math | Stripe MXN is in centavos; Edge Function multiplies by 100 before sending to Stripe |
+| `html2pdf.js` output quality | Use CSS `@media print` rules; test with real lease text; fallback to `jsPDF` if quality is poor |
+| Landscape signature on mobile web | Use CSS `transform: rotate(90deg)` + fixed positioning; tested pattern on mobile browsers |
+| Large PDF upload (> 5MB) | Lease PDFs are text-heavy, typically < 500KB; signature PNG compressed via canvas quality param |
+| react-signature-canvas + react-native-web | It's a React DOM component — renders fine on web; RN-web passes through DOM elements |
+| Storage bucket permissions | RLS scoped to lease parties (renter + landlord); public bucket for simplicity but path-restricted |
+| Lease status race condition | `finalizeLease` checks current status is `sent_for_signature` before updating to `active` |

@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Platform,
+  Linking,
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
@@ -58,10 +60,13 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
             renter_id: session.user.id,
             start_date: new Date().toISOString().split('T')[0],
             end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            status: 'active',
+            status: 'sent_for_signature',
             monthly_rent: 45000,
             deposit_amount: 90000,
             envelope_id: null,
+            signature_url: null,
+            document_url: null,
+            signed_at: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
             properties: {
@@ -105,8 +110,20 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
     router.push(`/pay/${leaseId}`)
   }
 
-  const handleViewLease = () => {
-    Alert.alert('Coming Soon', 'Lease document viewer will be available in a future update.')
+  const handleSignLease = (leaseId: string) => {
+    router.push(`/sign/${leaseId}`)
+  }
+
+  const handleViewLease = (documentUrl?: string | null) => {
+    if (documentUrl) {
+      if (Platform.OS === 'web') {
+        window.open(documentUrl, '_blank')
+      } else {
+        Linking.openURL(documentUrl)
+      }
+    } else {
+      Alert.alert('No Document', 'The signed lease document is not available yet.')
+    }
   }
 
   const handleContactLandlord = () => {
@@ -116,6 +133,8 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
   const renderLeaseCard = (lease: any) => {
     const isCompleted = lease.status === 'completed'
     const isActive = lease.status === 'active'
+    const needsSignature = lease.status === 'sent_for_signature'
+    const hasSigned = !!lease.document_url
     const property = lease.properties
     const propertyTitle = property?.description?.slice(0, 50) || property?.address || 'Property'
     const hasDepositPaid = depositPaidMap[lease.id] || false
@@ -166,6 +185,17 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
           </View>
         </TouchableOpacity>
 
+        {/* Sign Lease CTA */}
+        {needsSignature && (
+          <TouchableOpacity
+            style={styles.signLeaseButton}
+            onPress={() => handleSignLease(lease.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.signLeaseText}>✍️  Sign Lease</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Financials Section */}
         <Text style={styles.sectionTitle}>Financials</Text>
         <View style={styles.card}>
@@ -195,9 +225,12 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
         {/* Management Section */}
         <Text style={styles.sectionTitle}>Management</Text>
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.smallCard} onPress={handleViewLease}>
-            <Text style={styles.actionIcon}>📄</Text>
-            <Text style={styles.actionText}>View Lease</Text>
+          <TouchableOpacity
+            style={styles.smallCard}
+            onPress={() => handleViewLease(lease.document_url)}
+          >
+            <Text style={styles.actionIcon}>{hasSigned ? '📄' : '📝'}</Text>
+            <Text style={styles.actionText}>{hasSigned ? 'View Signed Lease' : 'View Lease'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.smallCard} onPress={handleContactLandlord}>
             <Text style={styles.actionIcon}>💬</Text>
@@ -350,6 +383,24 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     fontSize: 15,
     color: COLORS.text,
+  },
+  signLeaseButton: {
+    backgroundColor: COLORS.primary,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  signLeaseText: {
+    fontFamily: FONTS.bold,
+    fontSize: 18,
+    color: COLORS.white,
   },
   payButton: {
     backgroundColor: COLORS.primary,

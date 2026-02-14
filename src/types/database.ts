@@ -215,10 +215,13 @@ export interface Lease {
   renter_id: string
   start_date: string
   end_date: string
-  status: string 
+  status: string
   monthly_rent: number | null
   deposit_amount: number | null
   envelope_id: string | null
+  signature_url: string | null
+  document_url: string | null
+  signed_at: string | null
   created_at: string
   updated_at: string
 }
@@ -233,6 +236,9 @@ export interface LeaseInsert {
   monthly_rent?: number | null
   deposit_amount?: number | null
   envelope_id?: string | null
+  signature_url?: string | null
+  document_url?: string | null
+  signed_at?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -247,6 +253,9 @@ export interface LeaseUpdate {
   monthly_rent?: number | null
   deposit_amount?: number | null
   envelope_id?: string | null
+  signature_url?: string | null
+  document_url?: string | null
+  signed_at?: string | null
   created_at?: string
   updated_at?: string
 }
