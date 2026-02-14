@@ -1,0 +1,23 @@
+{
+  "common": {
+    "price": "Precio",
+    "rent": "Rentar",
+    "message": "Mensaje",
+    "contact": "Contacto",
+    "leads": "Prospectos",
+    "properties": "Propiedades",
+    "earnings": "Ganancias",
+    "signOut": "Cerrar Sesión",
+    "new": "Nuevo",
+    "search": "Buscar por ciudad...",
+    "interested": "Me Interesa 👋",
+    "notifications": "Notificaciones",
+    "month": "mes",
+    "bed": "Rec",
+    "bath": "Baño",
+    "availableFrom": "Disponible desde",
+    "language": "Idioma",
+    "english": "Inglés",
+    "spanish": "Español"
+  }
+}
