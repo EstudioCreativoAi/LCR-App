@@ -6,9 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "supabase:login": "npx supabase login",
-    "supabase:link": "npx supabase link --project-ref uhvpxkuyfuzqspjoljdj",
+    "supabase:link": "node scripts/supabase-env.js link",
     "supabase:push": "npx supabase db push",
-    "supabase:setup": "npx supabase link --project-ref uhvpxkuyfuzqspjoljdj && npx supabase db push"
+    "supabase:setup": "node scripts/supabase-env.js setup"
   },
   "keywords": [],
   "author": "",
