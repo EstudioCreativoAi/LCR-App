@@ -1,4 +1,4 @@
-// src/theme/theme.ts
+// src/theme/theme.ts - Baja-Tech Design System
 export const COLORS = {
   primary: '#D55E46', // Terracotta
   secondary: '#D5B58F', // Sand/Earth
