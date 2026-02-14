@@ -2,7 +2,7 @@
 CREATE TABLE public.payments (
   id UUID NOT NULL DEFAULT gen_random_uuid(),
   lease_id UUID NOT NULL REFERENCES public.leases(id) ON DELETE CASCADE,
-  lead_id UUID REFERENCES public.leads(id) ON DELETE SET NULL,
+  lead_id UUID,
   payer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   recipient_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   amount_mxn NUMERIC(12, 2) NOT NULL CHECK (amount_mxn > 0),
@@ -35,8 +35,13 @@ CREATE POLICY "Service role can update payments"
   ON public.payments FOR UPDATE
   USING (true);
 
--- Add 'Deposit Paid' to lead_status enum
-ALTER TYPE public.lead_status ADD VALUE IF NOT EXISTS 'Deposit Paid' AFTER 'Lease Sent';
+-- Add 'Deposit Paid' to lead_status enum (safe no-op if enum or value doesn't exist)
+DO $$
+BEGIN
+  ALTER TYPE public.lead_status ADD VALUE IF NOT EXISTS 'Deposit Paid' AFTER 'Lease Sent';
+EXCEPTION
+  WHEN undefined_object THEN NULL;
+END $$;
 
 -- Indexes for common queries
 CREATE INDEX idx_payments_lease_id ON public.payments(lease_id);
