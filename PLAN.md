@@ -1,238 +1,305 @@
-# PLAN: Edit Profile with Flip-Card UX
+# PLAN: Deposit Payment Flow (Stripe + Supabase Edge Functions)
 
 **Status:** Awaiting approval
-**Scope:** Wire up Edit Profile on the Cabo ID Card — DB migration, avatar uploads, flip-card animation, stamp effect
+**Scope:** End-to-end deposit payment: Stripe PaymentIntent via Edge Function, Payment Sheet UI, post-payment state machine, celebration screen
 
 ---
 
-## 1. Install dependency
+## 1. Install dependencies
 
 ```bash
-npm install react-native-reanimated
+npm install @stripe/stripe-react-native
 ```
 
-`expo-image-picker` and `expo-image-manipulator` are already installed. `babel.config.js` already has `babel-preset-expo` which includes the Reanimated plugin for SDK 54.
+No Expo config plugin needed for web-only (Stripe React Native supports web via `@stripe/stripe-js` under the hood). For native builds later, the Expo config plugin would be added to `app.json`.
 
 ---
 
-## 2. Supabase migration: `20260214100000_profile_edit_fields.sql`
+## 2. Supabase migration: `20260214200000_create_payments_table.sql`
 
-### 2a. Add columns to `profiles`
-
-```sql
-ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS first_name TEXT,
-  ADD COLUMN IF NOT EXISTS last_name TEXT,
-  ADD COLUMN IF NOT EXISTS email TEXT,
-  ADD COLUMN IF NOT EXISTS phone_number TEXT,
-  ADD COLUMN IF NOT EXISTS bio TEXT;
-```
-
-### 2b. Backfill `first_name` / `last_name` from existing `full_name`
+### 2a. Create `payments` table
 
 ```sql
-UPDATE public.profiles
-SET
-  first_name = split_part(full_name, ' ', 1),
-  last_name  = NULLIF(substring(full_name from position(' ' in full_name) + 1), '')
-WHERE full_name IS NOT NULL AND first_name IS NULL;
-```
-
-### 2c. Create computed column or keep `full_name` as-is?
-
-**Decision: Keep `full_name` column.** 20+ references across the codebase use `full_name`. We'll add a trigger that auto-updates `full_name` when `first_name` or `last_name` change, so existing code doesn't break:
-
-```sql
-CREATE OR REPLACE FUNCTION public.sync_full_name()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.full_name := TRIM(COALESCE(NEW.first_name, '') || ' ' || COALESCE(NEW.last_name, ''));
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER sync_full_name_trigger
-BEFORE INSERT OR UPDATE ON public.profiles
-FOR EACH ROW EXECUTE FUNCTION public.sync_full_name();
-```
-
-### 2d. Backfill `email` from `auth.users`
-
-```sql
-UPDATE public.profiles p
-SET email = u.email
-FROM auth.users u
-WHERE p.id = u.id AND p.email IS NULL;
-```
-
-### 2e. Update `handle_new_user()` to populate email on signup
-
-```sql
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, role, email)
-  VALUES (NEW.id, 'renter', NEW.email);
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-```
-
----
-
-## 3. Supabase migration: `20260214100100_create_avatars_bucket.sql`
-
-```sql
--- Create avatars bucket (public read)
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('avatars', 'avatars', true)
-ON CONFLICT (id) DO NOTHING;
-
--- Public read
-CREATE POLICY "Avatar Public Read"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'avatars');
-
--- Authenticated users manage their own folder: {user_id}/*
-CREATE POLICY "Users Manage Own Avatar"
-ON storage.objects FOR ALL
-TO authenticated
-USING (
-  bucket_id = 'avatars' AND
-  (storage.foldername(name))[1] = auth.uid()::text
-)
-WITH CHECK (
-  bucket_id = 'avatars' AND
-  (storage.foldername(name))[1] = auth.uid()::text
+CREATE TABLE public.payments (
+  id UUID NOT NULL DEFAULT gen_random_uuid(),
+  lease_id UUID NOT NULL REFERENCES public.leases(id) ON DELETE CASCADE,
+  lead_id UUID REFERENCES public.leads(id) ON DELETE SET NULL,
+  payer_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  recipient_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  amount_mxn NUMERIC(12, 2) NOT NULL CHECK (amount_mxn > 0),
+  payment_type TEXT NOT NULL DEFAULT 'deposit',  -- deposit | rent | commission
+  status TEXT NOT NULL DEFAULT 'pending',         -- pending | completed | failed | refunded
+  stripe_payment_intent_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (id)
 );
+
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+```
+
+### 2b. RLS policies
+
+- Payers can view their own payments
+- Recipients can view payments sent to them
+- Service role (Edge Function) can INSERT/UPDATE
+
+### 2c. Add `'Deposit Paid'` to `lead_status` enum
+
+```sql
+ALTER TYPE public.lead_status ADD VALUE IF NOT EXISTS 'Deposit Paid' AFTER 'Lease Sent';
+```
+
+### 2d. Indexes
+
+```sql
+CREATE INDEX idx_payments_lease_id ON public.payments(lease_id);
+CREATE INDEX idx_payments_payer_id ON public.payments(payer_id);
+CREATE INDEX idx_payments_status ON public.payments(status);
 ```
 
 ---
 
-## 4. Update TypeScript types (`src/types/database.ts`)
+## 3. Supabase Edge Function: `create-payment-intent`
 
-Add new fields to `Profile`, `ProfileInsert`, `ProfileUpdate`:
+**Path:** `supabase/functions/create-payment-intent/index.ts`
 
-```ts
-export interface Profile {
-  id: string
-  role: UserRole
-  full_name: string | null    // kept — auto-synced by trigger
-  first_name: string | null   // NEW
-  last_name: string | null    // NEW
-  email: string | null        // NEW (denormalized)
-  phone_number: string | null // NEW
-  bio: string | null          // NEW
-  avatar_url: string | null
-  created_at: string
-  updated_at: string
+### Input (POST body)
+```json
+{
+  "lease_id": "uuid",
+  "payer_id": "uuid"
 }
 ```
 
----
+### Logic
+1. Fetch the lease (get `deposit_amount`, `property_id`, `renter_id`)
+2. Verify `payer_id === lease.renter_id` (security check)
+3. Check no existing completed deposit payment for this lease
+4. Call Stripe API: `stripe.paymentIntents.create({ amount: deposit_amount * 100, currency: 'mxn' })`
+5. Insert a `payments` record with `status: 'pending'` and `stripe_payment_intent_id`
+6. Return `{ clientSecret, paymentId }` to the client
 
-## 5. Create profile service (`src/services/profileService.ts`)
+### Environment variables (Supabase secrets)
+- `STRIPE_SECRET_KEY` — Stripe secret key (set via `supabase secrets set`)
 
-New service with:
-
+### Stripe SDK in Deno
+```ts
+import Stripe from 'https://esm.sh/stripe@14?target=deno'
 ```
-fetchProfile(userId)       → SELECT * FROM profiles WHERE id = userId
-updateProfile(userId, data) → UPDATE profiles SET ... WHERE id = userId
-uploadAvatar(userId, imageUri) → pick 1:1, compress, upload to avatars/{userId}/avatar.jpg, return publicUrl
-```
-
-`uploadAvatar` reuses `processImageForUpload` and `uploadImageToStorage` from `src/utils/images.ts` but with a 1:1 aspect ratio for the picker.
-
----
-
-## 6. Flip-Card UX on `profile.tsx`
-
-### Architecture
-
-The ID card becomes a **FlipCard** component with two faces:
-
-```
-<FlipCard flipped={isEditing}>
-  <CardFront>         ← Current ID card UI (read-only)
-    [Edit button on top-right]
-  </CardFront>
-  <CardBack>          ← Edit form
-    [Avatar tap-to-change]
-    [First Name input]
-    [Last Name input]
-    [Phone input (placeholder: "+52...")]
-    [Bio textarea]
-    [Cancel] [Save]
-  </CardBack>
-</FlipCard>
-```
-
-### Animation spec (react-native-reanimated)
-
-- **Flip:** `withTiming` rotateY from 0° to 180° (500ms, Easing.inOut)
-- Front face: `backfaceVisibility: 'hidden'`, rotateY = `interpolate(progress, [0,1], [0, 180])`
-- Back face: `backfaceVisibility: 'hidden'`, rotateY = `interpolate(progress, [0,1], [180, 360])`
-- Both faces share the same `LinearGradient` background so the card feels like one physical object
-
-### "Stamp" animation on save
-
-After successful save + flip back to front:
-1. A circular "VERIFIED" stamp overlay scales from 0 → 1.2 → 1.0 with a spring animation
-2. Opacity fades from 1 → 0 over 1.5s
-3. Only plays if the profile now meets verification criteria (first_name + last_name + avatar_url all set)
-4. If not verified yet, skip the stamp — just flip back normally
-
-### Avatar editing
-
-- Tapping the avatar on the back face calls `pickImage()` with `aspect: [1, 1]`
-- Shows a loading spinner overlay on the avatar circle during upload
-- On success, updates the avatar preview immediately (optimistic UI)
 
 ---
 
-## 7. Files to create/modify
+## 4. Supabase Edge Function: `confirm-payment`
 
-| File | Action |
+**Path:** `supabase/functions/confirm-payment/index.ts`
+
+Called by the client AFTER Stripe Payment Sheet confirms success. (Belt-and-suspenders — the real source of truth would be a Stripe webhook in production, but for MVP this client-confirmed flow is sufficient.)
+
+### Input (POST body)
+```json
+{
+  "payment_id": "uuid",
+  "payment_intent_id": "pi_xxx"
+}
+```
+
+### Logic (all in a single transaction-like sequence)
+1. Verify the PaymentIntent status via Stripe API (`stripe.paymentIntents.retrieve`)
+2. If `status === 'succeeded'`:
+   a. Update `payments` record → `status: 'completed'`
+   b. Fetch the lease to get `property_id`, `lead_id`, `agent_id`
+   c. Update `leads` → `status: 'Deposit Paid'` (for the matching lead)
+   d. Update `properties` → `status: 'paused'` (remove from feed)
+   e. If `agent_id` exists → INSERT into `commissions` (10% of deposit)
+   f. INSERT two `notifications`:
+      - Renter: "Welcome home! Your deposit for [address] has been confirmed."
+      - Landlord: "Deposit received! [renter_name] has paid for [address]."
+3. Return `{ success: true, payment }` or error
+
+---
+
+## 5. New route: `app/pay/[leaseId].tsx`
+
+A full-screen payment route (NOT a modal — this is a serious financial action that deserves full attention).
+
+**URL:** `/pay/abc-123`
+
+### Screen structure (3 phases)
+
+#### Phase 1: Payment Summary Card
+```
+┌─────────────────────────────┐
+│  [Property Hero Image]       │
+│                              │
+│  123 Calle Marina, Cabo      │
+│  ─────────────────────       │
+│  SECURITY DEPOSIT            │
+│  $25,000 MXN                 │
+│  ─────────────────────       │
+│  Monthly Rent    $25,000     │
+│  Lease Term      12 months   │
+│  Landlord        Carlos R.   │
+│  ─────────────────────       │
+│                              │
+│  [ Pay Deposit — $25,000 ]   │
+│                              │
+│  🔒 Secured by Stripe        │
+└─────────────────────────────┘
+```
+
+- White card on sand background
+- Property photo at top (from `properties.photos[0]`)
+- Amount in large bold Poppins
+- Breakdown details below
+- CTA button triggers Stripe Payment Sheet
+
+#### Phase 2: Stripe Payment Sheet
+- Triggered by `presentPaymentSheet()` from `@stripe/stripe-react-native`
+- Native UI handles card input, Apple Pay, Google Pay
+- On success → call `confirm-payment` Edge Function → transition to Phase 3
+
+#### Phase 3: Cabo Celebration Screen
+Full-screen takeover:
+- **Background:** `LinearGradient` sunset (`#FF8C00` → `#FF0080`)
+- **Animation sequence:**
+  1. A key icon scales in (spring) at center
+  2. Key morphs/fades into a house icon (cross-fade with scale)
+  3. Confetti particles rain from top (custom Reanimated particle system — 30 small colored circles with random X drift and gravity)
+  4. Text fades in: "Welcome Home, [FirstName]." (large) + "Your Cabo adventure begins." (subtitle)
+- **Auto-dismiss:** After 4 seconds, show a "Continue" button that navigates to `/(tabs)/leases`
+- **Fallback:** Tapping anywhere also dismisses
+
+---
+
+## 6. Integration points (wiring it up)
+
+### 6a. Auto-navigate after lease execution
+In the component that calls `executeLease()` (LeadDashboard), after success:
+```ts
+router.push(`/pay/${leaseId}`)
+```
+
+### 6b. Fallback "Pay Deposit" on RenterLeaseDashboard
+Replace the stub `handlePayNextMonth` button:
+- If lease has no completed deposit payment → show "Pay Deposit" button
+- On press → `router.push(`/pay/${lease.id}`)`
+- If deposit already paid → show "Deposit Paid ✓" badge instead
+
+### 6c. Stripe initialization
+In `app/_layout.tsx`, wrap the app with `<StripeProvider>`:
+```tsx
+<StripeProvider publishableKey={EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY}>
+  <SessionProvider>
+    <RootLayoutNav />
+  </SessionProvider>
+</StripeProvider>
+```
+
+---
+
+## 7. New files
+
+| File | Purpose |
+|------|---------|
+| `supabase/migrations/20260214200000_create_payments_table.sql` | payments table + enum update |
+| `supabase/functions/create-payment-intent/index.ts` | Edge Function: creates Stripe PaymentIntent |
+| `supabase/functions/confirm-payment/index.ts` | Edge Function: post-payment state machine |
+| `app/pay/[leaseId].tsx` | Payment screen (summary + celebration) |
+| `src/services/paymentService.ts` | Client-side: create intent, confirm payment |
+| `src/components/CaboCelebration.tsx` | Reanimated confetti + welcome home animation |
+
+## 8. Modified files
+
+| File | Change |
 |------|--------|
-| `supabase/migrations/20260214100000_profile_edit_fields.sql` | Create |
-| `supabase/migrations/20260214100100_create_avatars_bucket.sql` | Create |
-| `src/types/database.ts` | Add `first_name`, `last_name`, `email`, `phone_number`, `bio` to Profile types |
-| `src/services/profileService.ts` | Create (fetch, update, uploadAvatar) |
-| `src/utils/images.ts` | Add `pickAvatarImage()` variant with 1:1 aspect |
-| `app/(tabs)/profile.tsx` | Major rewrite — FlipCard with edit form + stamp animation |
+| `package.json` | Add `@stripe/stripe-react-native` |
+| `app/_layout.tsx` | Wrap with `<StripeProvider>` |
+| `app/_layout.tsx` (Stack) | Add `pay/[leaseId]` route |
+| `src/types/database.ts` | Add `Payment` interface + update `LeadStatus` |
+| `src/components/RenterLeaseDashboard.tsx` | Replace stub "Pay" button with real deposit CTA |
+| `src/components/LeadDashboard.tsx` | After `executeLease` success → navigate to `/pay/[leaseId]` |
 
 ---
 
-## 8. Execution order
+## 9. Execution order
 
-1. `npm install react-native-reanimated`
-2. Create migration `20260214100000_profile_edit_fields.sql`
-3. Create migration `20260214100100_create_avatars_bucket.sql`
-4. Update `src/types/database.ts` with new profile fields
-5. Create `src/services/profileService.ts`
-6. Add `pickAvatarImage()` to `src/utils/images.ts`
-7. Rewrite `app/(tabs)/profile.tsx` with FlipCard + edit form + stamp animation
-8. Build verify: `npx expo export --platform web`
-
----
-
-## 9. What this plan does NOT change
-
-- No changes to existing components (LeadDashboard, ChatThread, etc.) — they continue using `full_name` which is auto-synced by the trigger
-- No changes to authService or SessionProvider
-- No OTP/phone verification (V2)
-- No changes to navigation structure
+1. `npm install @stripe/stripe-react-native`
+2. Create migration `20260214200000_create_payments_table.sql`
+3. Push migration: `npx supabase db push`
+4. Add `Payment` type to `src/types/database.ts`
+5. Create `src/services/paymentService.ts`
+6. Create Edge Function `supabase/functions/create-payment-intent/index.ts`
+7. Create Edge Function `supabase/functions/confirm-payment/index.ts`
+8. Deploy Edge Functions: `npx supabase functions deploy create-payment-intent` + `confirm-payment`
+9. Build `src/components/CaboCelebration.tsx` (confetti + animation)
+10. Build `app/pay/[leaseId].tsx` (summary card + Stripe Sheet + celebration)
+11. Update `app/_layout.tsx` with StripeProvider + new route
+12. Update `RenterLeaseDashboard.tsx` (replace stub Pay button)
+13. Update `LeadDashboard.tsx` (auto-navigate after lease execution)
+14. Build verify: `npx expo export --platform web`
 
 ---
 
-## 10. Verification criteria ("Verified" badge)
+## 10. Environment variables needed
 
-The holographic "VERIFIED" stamp appears when ALL of these are true:
-- `first_name` IS NOT NULL and non-empty
-- `last_name` IS NOT NULL and non-empty
-- `avatar_url` IS NOT NULL and non-empty
+| Variable | Where | Value |
+|----------|-------|-------|
+| `STRIPE_SECRET_KEY` | Supabase secrets | `sk_test_...` or `sk_live_...` |
+| `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Vercel env + `.env` | `pk_test_...` or `pk_live_...` |
 
-`phone_number` and `bio` are encouraged but do NOT block verification.
+Set via:
+```bash
+npx supabase secrets set STRIPE_SECRET_KEY=sk_test_xxx
+# Add EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY to Vercel and local .env
+```
+
+---
+
+## 11. Post-payment state machine (visual)
+
+```
+Renter taps "Pay Deposit"
+  │
+  ├─► Client calls create-payment-intent Edge Function
+  │     └─► Returns clientSecret
+  │
+  ├─► Client opens Stripe Payment Sheet (clientSecret)
+  │     └─► User enters card / Apple Pay / Google Pay
+  │
+  ├─► Stripe confirms payment
+  │     └─► Client calls confirm-payment Edge Function
+  │           ├─► payments.status → 'completed'
+  │           ├─► leads.status → 'Deposit Paid'
+  │           ├─► properties.status → 'paused'
+  │           ├─► commissions INSERT (if agent, 10% of deposit)
+  │           ├─► notification → renter ("Welcome home!")
+  │           └─► notification → landlord ("Deposit received!")
+  │
+  └─► Client shows Cabo Celebration screen
+        └─► "Continue" → /(tabs)/leases
+```
+
+---
+
+## 12. What this plan does NOT include
+
+- **Stripe Connect / landlord payouts** — deferred to V2
+- **Recurring rent payments** — deferred to V2
+- **Stripe webhooks** — MVP uses client-confirmed flow; webhook hardening is V2
+- **Refund flow** — not in MVP scope
+- **Receipt PDF generation** — payment record in DB is sufficient for MVP
+- **PayPal / bank transfer** — Stripe-only for MVP
+
+---
+
+## 13. Demo mode
+
+The payment flow will detect `isDemo` and skip the real Stripe call:
+- Show the summary card with mock data
+- "Pay" button simulates a 2-second loading delay
+- Immediately show the Cabo Celebration screen
+- No Edge Function calls, no DB writes
 
 ---
 
@@ -240,8 +307,9 @@ The holographic "VERIFIED" stamp appears when ALL of these are true:
 
 | Risk | Mitigation |
 |------|-----------|
-| `full_name` references break | Trigger auto-syncs `full_name` from `first_name + last_name` — zero code changes needed in existing components |
-| Reanimated web compatibility | react-native-reanimated v3 supports web; Expo SDK 54 includes the babel plugin |
-| Avatar upload fails silently | Show error Alert + keep old avatar; optimistic UI reverts on failure |
-| Migration fails on existing data | Backfill queries handle NULL safely with COALESCE |
-| `backfaceVisibility` on web | Supported in react-native-web via CSS `backface-visibility: hidden` |
+| `@stripe/stripe-react-native` web support | Uses `@stripe/stripe-js` on web automatically; Payment Sheet works cross-platform |
+| Stripe API key leaks | Secret key is ONLY in Supabase Edge Function env; publishable key is safe for client |
+| Double payment (user clicks twice) | Edge Function checks for existing completed payment before creating intent |
+| Payment succeeds but confirm-payment fails | Stripe webhook (V2) will catch this; for MVP the payment record stays `pending` and can be manually reconciled |
+| `lead_status` enum alteration | `ADD VALUE IF NOT EXISTS` is safe and non-blocking in Postgres |
+| MXN centavos math | Stripe MXN is in centavos; Edge Function multiplies by 100 before sending to Stripe |

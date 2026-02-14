@@ -9,7 +9,9 @@ export type Json =
 export type UserRole = 'renter' | 'landlord' | 'agent'
 export type PropertyStatus = 'active' | 'rented' | 'paused'
 export type LeaseStatus = 'pending' | 'active' | 'completed' | 'cancelled'
-export type LeadStatus = 'Interested' | 'Contacted' | 'Viewing Scheduled' | 'Lease Sent'
+export type LeadStatus = 'Interested' | 'Contacted' | 'Viewing Scheduled' | 'Lease Sent' | 'Deposit Paid'
+export type PaymentType = 'deposit' | 'rent' | 'commission'
+export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded'
 export type RatingCategory = 'property' | 'renter'
 
 export interface Database {
@@ -73,6 +75,12 @@ export interface Database {
         Row: ApiUsage
         Insert: ApiUsageInsert
         Update: ApiUsageUpdate
+        Relationships: []
+      }
+      payments: {
+        Row: Payment
+        Insert: PaymentInsert
+        Update: PaymentUpdate
         Relationships: []
       }
     }
@@ -441,4 +449,46 @@ export interface ApiUsageUpdate {
   id?: string
   user_id?: string
   created_at?: string
+}
+
+export interface Payment {
+  id: string
+  lease_id: string
+  lead_id: string | null
+  payer_id: string
+  recipient_id: string
+  amount_mxn: number
+  payment_type: PaymentType
+  status: PaymentStatus
+  stripe_payment_intent_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PaymentInsert {
+  id?: string
+  lease_id: string
+  lead_id?: string | null
+  payer_id: string
+  recipient_id: string
+  amount_mxn: number
+  payment_type?: PaymentType
+  status?: PaymentStatus
+  stripe_payment_intent_id?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface PaymentUpdate {
+  id?: string
+  lease_id?: string
+  lead_id?: string | null
+  payer_id?: string
+  recipient_id?: string
+  amount_mxn?: number
+  payment_type?: PaymentType
+  status?: PaymentStatus
+  stripe_payment_intent_id?: string | null
+  created_at?: string
+  updated_at?: string
 }

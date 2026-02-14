@@ -9,8 +9,10 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { Session } from '@supabase/supabase-js'
+import { fetchDepositPayment } from '../services/paymentService'
 import ReviewSystem from './ReviewSystem'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formatPrice } from '../utils/currency'
@@ -27,10 +29,12 @@ function getNextRentDue(startDate: string): string {
 }
 
 export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDashboardProps) {
+  const router = useRouter()
   const [leases, setLeases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [showRatingModal, setShowRatingModal] = useState<{ propertyId: string; leaseId: string } | null>(null)
+  const [depositPaidMap, setDepositPaidMap] = useState<Record<string, boolean>>({})
 
   const fetchLeases = useCallback(async () => {
     try {
@@ -69,6 +73,16 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
         ]
       }
       setLeases(result)
+
+      // Check deposit payment status for each lease
+      if (!isDemo) {
+        const paidMap: Record<string, boolean> = {}
+        for (const l of result) {
+          const payment = await fetchDepositPayment(l.id)
+          paidMap[l.id] = !!payment
+        }
+        setDepositPaidMap(paidMap)
+      }
     } catch (error) {
       console.error('Error fetching renter leases:', error)
       if (!isDemo) Alert.alert('Error', 'Failed to load your leases.')
@@ -87,8 +101,8 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
     fetchLeases()
   }
 
-  const handlePayNextMonth = () => {
-    Alert.alert('Coming Soon', 'Payment integration will be available in a future update.')
+  const handlePayDeposit = (leaseId: string) => {
+    router.push(`/pay/${leaseId}`)
   }
 
   const handleViewLease = () => {
@@ -104,7 +118,8 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
     const isActive = lease.status === 'active'
     const property = lease.properties
     const propertyTitle = property?.description?.slice(0, 50) || property?.address || 'Property'
-    const depositStatus = lease.deposit_amount != null && lease.deposit_amount > 0 ? 'Paid' : 'Pending'
+    const hasDepositPaid = depositPaidMap[lease.id] || false
+    const depositStatus = hasDepositPaid ? 'Paid' : 'Pending'
     const nextRentDue = lease.start_date ? getNextRentDue(lease.start_date) : 'N/A'
 
     const statusBadgeStyle = [
@@ -165,10 +180,15 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
             <Text style={styles.infoValue}>{nextRentDue}</Text>
           </View>
 
-          {isActive && (
-            <TouchableOpacity style={styles.payButton} onPress={handlePayNextMonth}>
-              <Text style={styles.payButtonText}>Pay Next Month</Text>
+          {isActive && !hasDepositPaid && (
+            <TouchableOpacity style={styles.payButton} onPress={() => handlePayDeposit(lease.id)}>
+              <Text style={styles.payButtonText}>Pay Deposit — {formatPrice(lease.deposit_amount || 0)}</Text>
             </TouchableOpacity>
+          )}
+          {isActive && hasDepositPaid && (
+            <View style={styles.depositPaidBadge}>
+              <Text style={styles.depositPaidText}>Deposit Paid ✓</Text>
+            </View>
           )}
         </View>
 
@@ -342,6 +362,19 @@ const styles = StyleSheet.create({
   payButtonText: {
     fontFamily: FONTS.bold,
     color: COLORS.white,
+    fontSize: 16,
+  },
+  depositPaidBadge: {
+    backgroundColor: COLORS.cardBackground,
+    height: 50,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: SPACING.lg,
+  },
+  depositPaidText: {
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
     fontSize: 16,
   },
   actionRow: {

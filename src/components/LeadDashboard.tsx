@@ -10,6 +10,7 @@ import {
   Alert,
   RefreshControl,
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { Lead, LeadStatus, Property } from '../types/database'
@@ -78,6 +79,7 @@ const MOCK_LEADS: any[] = [
 ]
 
 export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: () => void; isDemo?: boolean; session: Session }) {
+  const router = useRouter()
   const [leads, setLeads] = useState<LeadWithProperty[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -167,16 +169,18 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
         if (error) throw error
       }
 
-      // 2. If moving to 'Lease Sent', trigger the edge function (side effect)
+      // 2. If moving to 'Lease Sent', trigger the edge function and navigate to payment
       if (newStatus === 'Lease Sent') {
-        const { error: leaseError } = await executeLease(lead.property_id, lead.renter_id)
+        const { data: leaseData, error: leaseError } = await executeLease(lead.property_id, lead.renter_id)
         if (leaseError && !isDemo) {
-          // If the function fails (e.g. not deployed), we still updated the status
           console.warn('Lease execution failed but status was updated:', leaseError)
           Alert.alert(
-            'Note', 
+            'Note',
             'Lead status updated to "Lease Sent", but the lease document creation failed. Make sure the edge function is deployed.'
           )
+        } else if (leaseData?.lease?.id) {
+          // Auto-navigate to payment screen after lease execution
+          setTimeout(() => router.push(`/pay/${leaseData.lease.id}`), 500)
         }
       }
 
