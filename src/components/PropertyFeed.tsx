@@ -11,22 +11,19 @@ import {
   ScrollView,
   FlatList,
   Platform,
+  Alert,
 } from 'react-native'
+import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
-import { UserRole } from '../types/database'
+import { UserRole, Property as DBProperty } from '../types/database'
 import SearchFilterModal, { SearchFilters } from './SearchFilterModal'
+import PropertyDetail from './PropertyDetail'
+import ReviewSystem from './ReviewSystem'
+import { Session } from '@supabase/supabase-js'
 
-interface Property {
-  id: string
-  address: string
-  city: string
-  property_type: string
-  bedrooms: number
-  bathrooms: number
-  monthly_rent_mxn: number
-  status: string
-  available_from?: string
-  photos?: string[]
+interface Property extends DBProperty {
+  avg_rating?: number
+  review_count?: number
 }
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window')
@@ -34,8 +31,53 @@ const MAX_CONTENT_WIDTH = 800
 const IS_WEB = Platform.OS === 'web'
 const CARD_WIDTH = IS_WEB ? Math.min(WINDOW_WIDTH - 32, MAX_CONTENT_WIDTH) : WINDOW_WIDTH - 32
 
-const PropertyCard = ({ item }: { item: Property }) => {
+const PropertyCard = ({ 
+  item, 
+  role, 
+  isDemo, 
+  onOpenDetail 
+}: { 
+  item: Property; 
+  role?: UserRole; 
+  isDemo?: boolean;
+  onOpenDetail: (p: Property) => void
+}) => {
+  const { t } = useTranslation()
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
+  const [sendingLead, setSendingLead] = useState(false)
+
+  const handleInterest = async () => {
+    try {
+      setSendingLead(true)
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        Alert.alert('Sign In', 'Please sign in to express interest.')
+        return
+      }
+
+      if (isDemo) {
+        Alert.alert('Success (Demo)', 'Landlord has been notified! They will contact you soon.')
+        return
+      }
+
+      const { error } = await supabase
+        .from('leads')
+        .insert({
+          property_id: item.id,
+          renter_id: user.id,
+          status: 'Interested',
+          message: 'I am interested in this property!',
+        } as any)
+
+      if (error) throw error
+      Alert.alert('Success', 'Landlord has been notified! They will contact you soon.')
+    } catch (error: any) {
+      console.error('Error sending lead:', error)
+      Alert.alert('Error', 'Failed to send interest. Please try again.')
+    } finally {
+      setSendingLead(false)
+    }
+  }
 
   const handleScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x
@@ -61,7 +103,7 @@ const PropertyCard = ({ item }: { item: Property }) => {
   }
 
   return (
-    <View style={styles.card}>
+    <TouchableOpacity style={styles.card} onPress={() => onOpenDetail(item)}>
       <View style={styles.photoCarousel}>
         <ScrollView
           horizontal
@@ -98,11 +140,18 @@ const PropertyCard = ({ item }: { item: Property }) => {
         <View style={styles.priceRow}>
           <Text style={styles.price}>
             {formatPrice(item.monthly_rent_mxn)}
-            <Text style={styles.priceLabel}>/month</Text>
+            <Text style={styles.priceLabel}>/{t('common.month')}</Text>
           </Text>
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>{item.property_type}</Text>
           </View>
+        </View>
+
+        <View style={styles.ratingRow}>
+          <Text style={styles.ratingText}>
+            {item.avg_rating ? `★ ${item.avg_rating.toFixed(1)}` : '★ New'} 
+            {item.review_count ? ` (${item.review_count})` : ''}
+          </Text>
         </View>
 
         <Text style={styles.address} numberOfLines={1}>
@@ -113,35 +162,45 @@ const PropertyCard = ({ item }: { item: Property }) => {
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
             <Text style={styles.detailIcon}>🛌</Text>
-            <Text style={styles.detailText}>{item.bedrooms} Bed</Text>
+            <Text style={styles.detailText}>{item.bedrooms} {t('common.bed')}</Text>
           </View>
           <View style={styles.detailItem}>
             <Text style={styles.detailIcon}>🚿</Text>
-            <Text style={styles.detailText}>{item.bathrooms} Bath</Text>
+            <Text style={styles.detailText}>{item.bathrooms} {t('common.bath')}</Text>
           </View>
         </View>
 
-        {item.available_from && (
-          <View style={styles.availableRow}>
-            <Text style={styles.availableText}>
-              Available from: {new Date(item.available_from).toLocaleDateString('es-MX')}
-            </Text>
-          </View>
+        {role === 'renter' && (
+          <TouchableOpacity 
+            style={[styles.interestButton, sendingLead && styles.interestButtonDisabled]}
+            onPress={handleInterest}
+            disabled={sendingLead}
+          >
+            {sendingLead ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.interestButtonText}>{t('common.interested')}</Text>
+            )}
+          </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   )
 }
 
 interface PropertyFeedProps {
   role?: UserRole
+  isDemo?: boolean
 }
 
-export default function PropertyFeed({ role }: PropertyFeedProps) {
+export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
+  const { t } = useTranslation()
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilterModal, setShowFilterModal] = useState(false)
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
+  const [showRatingModal, setShowRatingModal] = useState<{ propertyId: string, renterId: string } | null>(null)
   const [filters, setFilters] = useState<SearchFilters>({
     priceMin: 0,
     priceMax: 100000,
@@ -175,10 +234,30 @@ export default function PropertyFeed({ role }: PropertyFeedProps) {
         query = query.lte('available_from', moveInDateStr)
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false })
+      const { data, error } = isDemo ? { data: null, error: null } : await query.order('created_at', { ascending: false })
       
+      let finalProperties: Property[] = []
+
       if (!error && data && data.length > 0) {
-        setProperties(data)
+        // Fetch ratings for these properties
+        const propertyIds = data.map((p: any) => p.id)
+        const { data: ratingsData } = await (supabase
+          .from('ratings') as any)
+          .select('property_id, rating')
+          .in('property_id', propertyIds)
+          .eq('category', 'property')
+
+        finalProperties = data.map((p: any) => {
+          const pRatings = ratingsData?.filter((r: any) => r.property_id === p.id) || []
+          const avg = pRatings.length > 0 
+            ? pRatings.reduce((acc: number, r: any) => acc + r.rating, 0) / pRatings.length 
+            : undefined
+          return {
+            ...p,
+            avg_rating: avg,
+            review_count: pRatings.length
+          }
+        })
       } else {
         // Fallback mock data for a WOW factor if DB is empty
         const mockProperties: Property[] = [
@@ -192,6 +271,15 @@ export default function PropertyFeed({ role }: PropertyFeedProps) {
             monthly_rent_mxn: 85000,
             status: 'active',
             available_from: new Date().toISOString(),
+            landlord_id: 'mock-landlord',
+            agent_id: null,
+            latitude: 0,
+            longitude: 0,
+            description: 'Luxury villa',
+            house_rules: '',
+            amenities: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             photos: [
               'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
               'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=800&q=80',
@@ -207,6 +295,15 @@ export default function PropertyFeed({ role }: PropertyFeedProps) {
             monthly_rent_mxn: 35000,
             status: 'active',
             available_from: new Date().toISOString(),
+            landlord_id: 'mock-landlord',
+            agent_id: null,
+            latitude: 0,
+            longitude: 0,
+            description: 'Beautiful condo',
+            house_rules: '',
+            amenities: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             photos: [
               'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80',
               'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=800&q=80',
@@ -222,13 +319,23 @@ export default function PropertyFeed({ role }: PropertyFeedProps) {
             monthly_rent_mxn: 18500,
             status: 'active',
             available_from: new Date().toISOString(),
+            landlord_id: 'mock-landlord',
+            agent_id: null,
+            latitude: 0,
+            longitude: 0,
+            description: 'Cozy loft',
+            house_rules: '',
+            amenities: [],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             photos: [
               'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80',
             ]
           }
         ]
-        setProperties(mockProperties)
+        finalProperties = mockProperties
       }
+      setProperties(finalProperties)
     } catch (error) {
       console.error('Error fetching properties:', error)
     } finally {
@@ -256,7 +363,7 @@ export default function PropertyFeed({ role }: PropertyFeedProps) {
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
               style={styles.searchInput}
-              placeholder="Search by city..."
+              placeholder={t('common.search')}
               placeholderTextColor="#8E8E93"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -301,7 +408,14 @@ export default function PropertyFeed({ role }: PropertyFeedProps) {
         ) : (
           <FlatList
             data={properties}
-            renderItem={({ item }) => <PropertyCard item={item} />}
+            renderItem={({ item }) => (
+              <PropertyCard 
+                item={item} 
+                role={role} 
+                isDemo={isDemo} 
+                onOpenDetail={(p) => setSelectedProperty(p)} 
+              />
+            )}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
@@ -314,6 +428,13 @@ export default function PropertyFeed({ role }: PropertyFeedProps) {
           onApply={(newFilters) => setFilters(newFilters)}
           initialFilters={filters}
         />
+
+        {selectedProperty && (
+          <PropertyDetail 
+            property={selectedProperty} 
+            onClose={() => setSelectedProperty(null)} 
+          />
+        )}
       </View>
     </View>
   )
@@ -434,5 +555,32 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 64, marginBottom: 20, opacity: 0.5 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: '#1C1C1E', marginBottom: 8 },
   emptyText: { fontSize: 15, color: '#8E8E93', textAlign: 'center' },
+  interestButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  interestButtonDisabled: {
+    opacity: 0.7,
+  },
+  interestButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  ratingRow: {
+    marginBottom: 8,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFCC00',
+  },
 })
 

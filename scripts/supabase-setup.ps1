@@ -1,8 +1,11 @@
 # Supabase Link and Push Script
-# Run this from the project root after ensuring you're logged in:
-#   npx supabase login
 #
-# You will be prompted for your database password during the link step.
+# PREREQUISITES (run these first in a regular terminal):
+#   1. Login: npm run supabase:login
+#      (Opens browser for OAuth - cannot run in automated/non-TTY environments)
+#   2. Have your database password ready (from Supabase Dashboard -> Project Settings -> Database)
+#
+# Then run this script from the project root.
 
 $ErrorActionPreference = "Stop"
 $projectRef = "uhvpxkuyfuzqspjoljdj"
