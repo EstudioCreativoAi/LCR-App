@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import Slider from '@react-native-community/slider'
 import DateTimePicker from '@react-native-community/datetimepicker'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
 
 export interface SearchFilters {
   priceMin: number
@@ -121,9 +122,9 @@ export default function SearchFilterModal({
                 step={1000}
                 value={priceMin}
                 onValueChange={setPriceMin}
-                minimumTrackTintColor="#007AFF"
-                maximumTrackTintColor="#E5E5EA"
-                thumbTintColor="#007AFF"
+                minimumTrackTintColor={COLORS.secondary}
+                maximumTrackTintColor={COLORS.secondary}
+                thumbTintColor={COLORS.primary}
               />
               <Text style={styles.sliderValue}>{formatPrice(priceMin)}</Text>
             </View>
@@ -138,9 +139,9 @@ export default function SearchFilterModal({
                 step={1000}
                 value={priceMax}
                 onValueChange={setPriceMax}
-                minimumTrackTintColor="#007AFF"
-                maximumTrackTintColor="#E5E5EA"
-                thumbTintColor="#007AFF"
+                minimumTrackTintColor={COLORS.secondary}
+                maximumTrackTintColor={COLORS.secondary}
+                thumbTintColor={COLORS.primary}
               />
               <Text style={styles.sliderValue}>{formatPrice(priceMax)}</Text>
             </View>
@@ -267,73 +268,73 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
-    paddingHorizontal: 20,
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: SPACING.lg,
+    paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.lg,
+    paddingHorizontal: SPACING.lg,
     maxHeight: '90%',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: SPACING.lg,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#000000',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeButtonText: {
     fontSize: 20,
-    color: '#8E8E93',
-    fontWeight: '600',
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
   },
   section: {
     marginBottom: 28,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000000',
-    marginBottom: 12,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.text,
+    marginBottom: SPACING.md,
   },
   priceDisplay: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: SPACING.md,
     paddingVertical: 12,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 12,
   },
   priceText: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#007AFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
   },
   priceSeparator: {
     fontSize: 20,
-    color: '#8E8E93',
+    color: COLORS.muted,
     marginHorizontal: 12,
   },
   sliderContainer: {
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   sliderLabel: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#8E8E93',
+    fontFamily: FONTS.medium,
+    color: COLORS.muted,
     marginBottom: 4,
   },
   slider: {
@@ -342,8 +343,8 @@ const styles = StyleSheet.create({
   },
   sliderValue: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#000000',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.text,
     textAlign: 'right',
     marginTop: -4,
   },
@@ -356,39 +357,39 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 16,
     borderRadius: 12,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'transparent',
   },
   bedroomButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   bedroomButtonText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#000000',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.text,
   },
   bedroomButtonTextActive: {
-    color: '#FFFFFF',
+    color: COLORS.white,
   },
   datePickerButton: {
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.secondary,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   datePickerButtonText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#000000',
+    fontFamily: FONTS.medium,
+    color: COLORS.text,
   },
   calendarIcon: {
     fontSize: 18,
@@ -401,48 +402,49 @@ const styles = StyleSheet.create({
   },
   clearText: {
     fontSize: 14,
-    color: '#FF3B30',
-    fontWeight: '600',
+    color: COLORS.accent,
+    fontFamily: FONTS.semiBold,
   },
   doneButton: {
     alignSelf: 'flex-end',
-    padding: 8,
-    marginTop: 8,
+    padding: SPACING.sm,
+    marginTop: SPACING.sm,
   },
   doneButtonText: {
-    color: '#007AFF',
+    color: COLORS.primary,
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FONTS.semiBold,
   },
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
+    marginTop: SPACING.sm,
   },
   resetButton: {
     flex: 1,
     paddingVertical: 16,
     borderRadius: 12,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
   resetButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.muted,
   },
   applyButton: {
     flex: 2,
+    height: 56,
     paddingVertical: 16,
-    borderRadius: 12,
-    backgroundColor: '#007AFF',
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   applyButtonText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
   },
 })

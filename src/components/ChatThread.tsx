@@ -14,6 +14,8 @@ import {
 } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { Message, Profile, Lead } from '../types/database'
+import { ChatBubble } from './ChatBubble'
+import { COLORS } from '../theme/theme'
 
 interface ChatThreadProps {
   leadId: string
@@ -142,15 +144,8 @@ export default function ChatThread({ leadId, currentUserId, onClose }: ChatThrea
     })
 
     return (
-      <View style={[styles.messageContainer, isMe ? styles.myMessage : styles.theirMessage]}>
-        <View style={[styles.bubble, isMe ? styles.myBubble : styles.theirBubble]}>
-          <Text style={[styles.messageText, isMe ? styles.myMessageText : styles.theirMessageText]}>
-            {item.content}
-          </Text>
-          <Text style={[styles.timestamp, isMe ? styles.myTimestamp : styles.theirTimestamp]}>
-            {timestamp}
-          </Text>
-        </View>
+      <View style={styles.messageWrapper}>
+        <ChatBubble message={item.content} isSender={isMe} timestamp={timestamp} />
       </View>
     )
   }
@@ -160,7 +155,7 @@ export default function ChatThread({ leadId, currentUserId, onClose }: ChatThrea
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     )
   }
@@ -209,8 +204,12 @@ export default function ChatThread({ leadId, currentUserId, onClose }: ChatThrea
       >
         <View style={styles.inputContainer}>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              inputText.trim().length > 0 && styles.inputActive,
+            ]}
             placeholder="Type a message..."
+            placeholderTextColor={COLORS.muted}
             value={inputText}
             onChangeText={setInputText}
             multiline
@@ -221,7 +220,7 @@ export default function ChatThread({ leadId, currentUserId, onClose }: ChatThrea
             disabled={!inputText.trim() || sending}
           >
             {sending ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={COLORS.white} />
             ) : (
               <Text style={styles.sendButtonText}>Send</Text>
             )}
@@ -303,51 +302,9 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
   },
-  messageContainer: {
-    marginBottom: 12,
-    flexDirection: 'row',
+  messageWrapper: {
+    marginBottom: 8,
     width: '100%',
-  },
-  myMessage: {
-    justifyContent: 'flex-end',
-  },
-  theirMessage: {
-    justifyContent: 'flex-start',
-  },
-  bubble: {
-    maxWidth: '80%',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  myBubble: {
-    backgroundColor: '#007AFF',
-    borderBottomRightRadius: 4,
-  },
-  theirBubble: {
-    backgroundColor: '#F2F2F7',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  myMessageText: {
-    color: '#FFFFFF',
-  },
-  theirMessageText: {
-    color: '#1C1C1E',
-  },
-  timestamp: {
-    fontSize: 10,
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  myTimestamp: {
-    color: 'rgba(255, 255, 255, 0.7)',
-  },
-  theirTimestamp: {
-    color: '#8E8E93',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -359,25 +316,30 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 20,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 8,
     paddingTop: 8,
     fontSize: 15,
     maxHeight: 100,
     marginRight: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  inputActive: {
+    borderColor: COLORS.accent,
   },
   sendButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sendButtonDisabled: {
-    backgroundColor: '#B4D7FF',
+    backgroundColor: COLORS.muted,
   },
   sendButtonText: {
     color: '#FFFFFF',

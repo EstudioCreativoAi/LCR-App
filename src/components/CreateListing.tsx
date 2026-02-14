@@ -17,6 +17,8 @@ import * as ImagePicker from 'expo-image-picker'
 import * as ImageManipulator from 'expo-image-manipulator'
 import { supabase } from '../lib/supabase'
 import { PropertyInsert } from '../types/database'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
+import { formStyles } from '../theme/forms'
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window')
 const MAX_CONTENT_WIDTH = 800
@@ -55,6 +57,13 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
   })
 
   const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([])
+  const [focusedInput, setFocusedInput] = useState<string | null>(null)
+
+  const inputStyle = (id: string) => [
+    formStyles.input,
+    focusedInput === id && formStyles.inputFocused,
+    Platform.OS === 'web' && { outlineWidth: 0 },
+  ]
 
   const transitionToStep = (newStep: number) => {
     Animated.timing(fadeAnim, {
@@ -206,26 +215,32 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
   const renderStep1 = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.sectionTitle}>Basic Information</Text>
-      
-      <Text style={styles.label}>Full Address</Text>
+
+      <Text style={formStyles.label}>Full Address</Text>
       <TextInput
-        style={styles.input}
+        style={inputStyle('address')}
         placeholder="e.g. 123 Marina Blvd, Suite 4"
+        placeholderTextColor={COLORS.muted}
         value={formData.address}
         onChangeText={(v) => setFormData({ ...formData, address: v })}
+        onFocus={() => setFocusedInput('address')}
+        onBlur={() => setFocusedInput(null)}
       />
 
-      <Text style={styles.label}>City</Text>
+      <Text style={formStyles.label}>City</Text>
       <TextInput
-        style={styles.input}
+        style={inputStyle('city')}
         placeholder="e.g. Cabo San Lucas"
+        placeholderTextColor={COLORS.muted}
         value={formData.city}
         onChangeText={(v) => setFormData({ ...formData, city: v })}
+        onFocus={() => setFocusedInput('city')}
+        onBlur={() => setFocusedInput(null)}
       />
 
       <View style={styles.row}>
         <View style={{ flex: 1, marginRight: 8 }}>
-          <Text style={styles.label}>Property Type</Text>
+          <Text style={formStyles.label}>Property Type</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.typeSelector}>
             {PROPERTY_TYPES.map(t => (
               <TouchableOpacity 
@@ -242,36 +257,45 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
 
       <View style={styles.row}>
         <View style={{ flex: 1, marginRight: 8 }}>
-          <Text style={styles.label}>Bedrooms</Text>
+          <Text style={formStyles.label}>Bedrooms</Text>
           <TextInput
-            style={styles.input}
+            style={inputStyle('bedrooms')}
             keyboardType="numeric"
+            placeholderTextColor={COLORS.muted}
             value={formData.bedrooms?.toString()}
             onChangeText={(v) => setFormData({ ...formData, bedrooms: parseInt(v) || 0 })}
+            onFocus={() => setFocusedInput('bedrooms')}
+            onBlur={() => setFocusedInput(null)}
           />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.label}>Bathrooms</Text>
+          <Text style={formStyles.label}>Bathrooms</Text>
           <TextInput
-            style={styles.input}
+            style={inputStyle('bathrooms')}
             keyboardType="numeric"
+            placeholderTextColor={COLORS.muted}
             value={formData.bathrooms?.toString()}
             onChangeText={(v) => setFormData({ ...formData, bathrooms: parseFloat(v) || 0 })}
+            onFocus={() => setFocusedInput('bathrooms')}
+            onBlur={() => setFocusedInput(null)}
           />
         </View>
       </View>
 
-      <Text style={styles.label}>Monthly Rent (MXN)</Text>
+      <Text style={formStyles.label}>Monthly Rent (MXN)</Text>
       <TextInput
-        style={[styles.input, styles.priceInput]}
+        style={[inputStyle('rent'), styles.priceInput]}
         keyboardType="numeric"
         placeholder="$0.00"
+        placeholderTextColor={COLORS.muted}
         value={formData.monthly_rent_mxn?.toString()}
         onChangeText={(v) => setFormData({ ...formData, monthly_rent_mxn: parseFloat(v) || 0 })}
+        onFocus={() => setFocusedInput('rent')}
+        onBlur={() => setFocusedInput(null)}
       />
 
-      <TouchableOpacity 
-        style={styles.primaryButton}
+      <TouchableOpacity
+        style={formStyles.submitButton}
         onPress={() => transitionToStep(2)}
       >
         <Text style={styles.primaryButtonText}>Next: Description & Amenities</Text>
@@ -282,28 +306,34 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
   const renderStep2 = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.sectionTitle}>Details & Amenities</Text>
-      
-      <Text style={styles.label}>Property Description</Text>
+
+      <Text style={formStyles.label}>Property Description</Text>
       <TextInput
-        style={[styles.input, styles.textArea]}
+        style={[inputStyle('description'), styles.textArea]}
         multiline
         numberOfLines={4}
         placeholder="Tell potential renters what makes your property special..."
+        placeholderTextColor={COLORS.muted}
         value={formData.description || ''}
         onChangeText={(v) => setFormData({ ...formData, description: v })}
+        onFocus={() => setFocusedInput('description')}
+        onBlur={() => setFocusedInput(null)}
       />
 
-      <Text style={styles.label}>House Rules</Text>
+      <Text style={formStyles.label}>House Rules</Text>
       <TextInput
-        style={[styles.input, styles.textArea]}
+        style={[inputStyle('house_rules'), styles.textArea]}
         multiline
         numberOfLines={3}
         placeholder="e.g. No smoking, Quiet hours after 10 PM..."
+        placeholderTextColor={COLORS.muted}
         value={formData.house_rules || ''}
         onChangeText={(v) => setFormData({ ...formData, house_rules: v })}
+        onFocus={() => setFocusedInput('house_rules')}
+        onBlur={() => setFocusedInput(null)}
       />
 
-      <Text style={styles.label}>Amenities</Text>
+      <Text style={formStyles.label}>Amenities</Text>
       <View style={styles.amenitiesGrid}>
         {AMENITIES_OPTIONS.map(a => (
           <TouchableOpacity 
@@ -323,8 +353,8 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
         >
           <Text style={styles.secondaryButtonText}>Back</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.primaryButton, { flex: 1, marginLeft: 12 }]}
+        <TouchableOpacity
+          style={[formStyles.submitButton, { flex: 1, marginLeft: 12 }]}
           onPress={() => transitionToStep(3)}
         >
           <Text style={styles.primaryButtonText}>Next: Photo Upload</Text>
@@ -336,7 +366,9 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
   const renderStep3 = () => (
     <View style={styles.stepContainer}>
       <Text style={styles.sectionTitle}>Property Photos</Text>
-      <Text style={styles.label}>Upload 5-10 high-quality photos to attract renters.</Text>
+      <Text style={formStyles.instructionalText}>
+        Upload 5-10 high-quality photos to attract renters.
+      </Text>
 
       <TouchableOpacity style={styles.uploadBox} onPress={pickImages}>
         <Text style={styles.uploadIcon}>📸</Text>
@@ -351,7 +383,7 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
 
       {loading ? (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Uploading listing...</Text>
         </View>
       ) : (
@@ -362,8 +394,8 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
           >
             <Text style={styles.secondaryButtonText}>Back</Text>
           </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.primaryButton, { flex: 1, marginLeft: 12, backgroundColor: '#34C759' }]}
+          <TouchableOpacity
+            style={[formStyles.submitButton, { flex: 1, marginLeft: 12 }]}
             onPress={handleSubmit}
           >
             <Text style={styles.primaryButtonText}>Publish Listing</Text>
@@ -413,88 +445,71 @@ const styles = StyleSheet.create({
   },
   overlayWeb: {
     backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 20,
+    padding: SPACING.md,
   },
   modalContainer: {
     width: '100%',
     maxWidth: 600,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 24,
     height: Platform.OS === 'web' ? '90%' : '100%',
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: COLORS.text,
     shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.08,
     shadowRadius: 40,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 24,
+    padding: SPACING.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: COLORS.cardBackground,
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeText: {
     fontSize: 16,
-    color: '#8E8E93',
-    fontWeight: '700',
+    color: COLORS.muted,
+    fontFamily: FONTS.bold,
   },
   progressBar: {
     height: 4,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     width: '100%',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
   },
   scrollContent: {
-    padding: 24,
+    padding: SPACING.lg,
   },
   stepContainer: {
     width: '100%',
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#3A3A3C',
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    backgroundColor: '#F2F2F7',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-    color: '#1C1C1E',
-    borderWidth: 1,
-    borderColor: 'transparent',
-    ...(Platform.OS === 'web' ? { outlineWidth: 0 } : {}),
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.md,
   },
   priceInput: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#007AFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
   },
   textArea: {
     height: 100,
@@ -503,82 +518,82 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: SPACING.sm,
   },
   typeSelector: {
     marginTop: 4,
     flexDirection: 'row',
   },
   typeOption: {
-    paddingHorizontal: 16,
+    paddingHorizontal: SPACING.md,
     paddingVertical: 10,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 20,
-    marginRight: 8,
+    marginRight: SPACING.sm,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.secondary,
   },
   typeOptionActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   typeOptionText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.muted,
   },
   typeOptionTextActive: {
-    color: '#FFFFFF',
+    color: COLORS.white,
   },
   amenitiesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginTop: 8,
+    marginTop: SPACING.sm,
   },
   amenityItem: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: SPACING.sm,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.secondary,
   },
   amenityItemActive: {
-    backgroundColor: '#EBF5FF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.cardBackground,
+    borderColor: COLORS.primary,
   },
   amenityText: {
     fontSize: 14,
-    color: '#8E8E93',
-    fontWeight: '500',
+    color: COLORS.muted,
+    fontFamily: FONTS.medium,
   },
   amenityTextActive: {
-    color: '#007AFF',
-    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: FONTS.bold,
   },
   uploadBox: {
     width: '100%',
     height: 120,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 16,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: SPACING.md,
     borderStyle: 'dashed',
     borderWidth: 2,
-    borderColor: '#AEAEB2',
+    borderColor: COLORS.muted,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: SPACING.sm,
   },
   uploadIcon: {
     fontSize: 32,
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   uploadText: {
     fontSize: 15,
-    color: '#8E8E93',
-    fontWeight: '600',
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
   },
   previewScroll: {
-    marginTop: 16,
+    marginTop: SPACING.md,
     height: 100,
   },
   previewImage: {
@@ -588,43 +603,43 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   primaryButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 16,
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.md,
     borderRadius: 16,
     alignItems: 'center',
-    marginTop: 32,
-    shadowColor: '#007AFF',
+    marginTop: SPACING.xl,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: FONTS.bold,
   },
   secondaryButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.secondary,
     alignItems: 'center',
-    marginTop: 32,
+    marginTop: SPACING.xl,
   },
   secondaryButtonText: {
-    color: '#8E8E93',
+    color: COLORS.muted,
     fontSize: 17,
-    fontWeight: '600',
+    fontFamily: FONTS.semiBold,
   },
   loadingOverlay: {
     alignItems: 'center',
-    marginTop: 32,
+    marginTop: SPACING.xl,
   },
   loadingText: {
     marginTop: 12,
     fontSize: 15,
-    color: '#8E8E93',
-    fontWeight: '600',
+    color: COLORS.muted,
+    fontFamily: FONTS.semiBold,
   },
 })

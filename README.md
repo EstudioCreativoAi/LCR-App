@@ -54,6 +54,45 @@ This project follows the **PRD Version 1.0** specifications for core marketplace
 
 ---
 
+## ☁️ Vercel Deployment
+
+### Environment Variables (Production & Preview)
+
+Configure environment variables in the [Vercel Dashboard](https://vercel.com/dashboard) (Project Settings → Environment Variables):
+
+| Variable | Production (main) | Preview (staging) |
+|----------|-------------------|-------------------|
+| `EXPO_PUBLIC_SUPABASE_URL` | Main Supabase project URL | Staging Supabase project URL |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Main Supabase anon key | Staging Supabase anon key |
+
+- **Production** — Used for deployments from `main`. Map to your primary Supabase project.
+- **Preview** — Used for deployments from feature branches. Map to your secondary Staging Supabase project.
+
+Add each variable and scope it to **Production** or **Preview** (or both) as appropriate.
+
+### Syncing Environment Variables Locally
+
+Use `vercel env pull` to sync the correct keys into `.env.local` based on which environment you need:
+
+```bash
+# Link the project first (one-time)
+vercel link
+
+# Pull Production keys (main Supabase) — use when on main or testing production
+vercel env pull .env.local --environment=production
+
+# Pull Preview keys (Staging Supabase) — use when on feature branches or testing staging
+vercel env pull .env.local --environment=preview
+```
+
+**Branch-based workflow:**
+- Working on `main` → `vercel env pull .env.local --environment=production` (or `npm run vercel:env:production`)
+- Working on a feature branch → `vercel env pull .env.local --environment=preview` (or `npm run vercel:env:preview`)
+
+Expo loads `.env.local` in addition to `.env`; the pulled file overrides values for local development.
+
+---
+
 ## 📦 Getting Started
 
 ```bash

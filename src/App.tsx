@@ -1,8 +1,15 @@
 import 'react-native-url-polyfill/auto'
 import React, { useState, useEffect } from 'react'
 import { View, Text, StyleSheet, ActivityIndicator, SafeAreaView, TouchableOpacity } from 'react-native'
+import {
+  useFonts,
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from '@expo-google-fonts/poppins'
 import { Session } from '@supabase/supabase-js'
-import { supabase } from './lib/supabase'
+import { supabase, hasSupabaseConfig } from './lib/supabase'
 import { UserRole } from './types/database'
 import AuthScreen from './screens/AuthScreen'
 import PropertyFeed from './components/PropertyFeed'
@@ -13,8 +20,16 @@ import CommissionTracker from './components/CommissionTracker'
 import NotificationCenter from './components/NotificationCenter'
 import i18n from './i18n'
 import { useTranslation } from 'react-i18next'
+import { COLORS, SPACING, FONTS } from './theme/theme'
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    'Poppins-Regular': Poppins_400Regular,
+    'Poppins-Medium': Poppins_500Medium,
+    'Poppins-SemiBold': Poppins_600SemiBold,
+    'Poppins-Bold': Poppins_700Bold,
+  })
+
   const [session, setSession] = useState<Session | null>(null)
   const [role, setRole] = useState<UserRole | null>(null)
   const [loading, setLoading] = useState(true)
@@ -22,6 +37,11 @@ export default function App() {
 
   useEffect(() => {
     if (isDemo) {
+      setLoading(false)
+      return
+    }
+
+    if (!hasSupabaseConfig) {
       setLoading(false)
       return
     }
@@ -95,12 +115,38 @@ export default function App() {
     }
   }
 
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    )
+  }
+
   if (loading) {
      return (
        <View style={styles.loadingContainer}>
-         <ActivityIndicator size="large" color="#007AFF" />
+         <ActivityIndicator size="large" color={COLORS.primary} />
        </View>
      )
+  }
+
+  if (!hasSupabaseConfig) {
+    return (
+      <View style={[styles.container, styles.configPrompt]}>
+        <Text style={styles.configTitle}>Configuration Required</Text>
+        <Text style={styles.configText}>
+          Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in Vercel
+          Project Settings → Environment Variables.
+        </Text>
+        <TouchableOpacity
+          style={styles.demoButton}
+          onPress={() => handleEnterDemo('renter')}
+        >
+          <Text style={styles.demoButtonText}>Try Demo Mode</Text>
+        </TouchableOpacity>
+      </View>
+    )
   }
 
   return (
@@ -301,23 +347,53 @@ function HomeScreen({ session, role, isDemo, onSignOut }: { session: Session; ro
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  configPrompt: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  configTitle: {
+    fontSize: 20,
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  configText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
+    textAlign: 'center',
+    marginBottom: SPACING.xl,
+  },
+  demoButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: 16,
+  },
+  demoButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontFamily: FONTS.bold,
+  },
   homeContainer: {
     flex: 1,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: COLORS.muted,
   },
   headerWrapper: {
     width: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: COLORS.background,
     zIndex: 10,
   },
   header: {
@@ -326,67 +402,67 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: SPACING.md,
     paddingVertical: 14,
   },
   headerTitle: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
     fontSize: 12,
-    fontWeight: '500',
-    color: '#8E8E93',
+    fontFamily: FONTS.medium,
+    color: COLORS.muted,
   },
   roleBadge: {
-    backgroundColor: '#EBF5FF',
+    backgroundColor: COLORS.cardBackground,
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
     borderRadius: 6,
     marginTop: 4,
   },
   roleBadgeText: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#007AFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
   },
   signOutButton: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#FAFAFA',
-    borderRadius: 10,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.secondary,
   },
   signOutButtonText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#FF3B30',
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
   },
   createListingButton: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
-    shadowColor: '#007AFF',
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
   createListingButtonText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
   },
   tabBar: {
     flexDirection: 'row',
     width: '100%',
     maxWidth: 800,
-    paddingHorizontal: 16,
-    gap: 24,
+    paddingHorizontal: SPACING.md,
+    gap: SPACING.lg,
   },
   tab: {
     paddingVertical: 12,
@@ -394,15 +470,15 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   tabActive: {
-    borderBottomColor: '#007AFF',
+    borderBottomColor: COLORS.primary,
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.muted,
   },
   tabTextActive: {
-    color: '#007AFF',
+    color: COLORS.primary,
   },
   notificationBell: {
     padding: 6,
@@ -412,30 +488,30 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 2,
     right: 2,
-    backgroundColor: '#FF3B30',
+    backgroundColor: COLORS.accent,
     minWidth: 18,
     height: 18,
     borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: COLORS.white,
     paddingHorizontal: 2,
   },
   unreadBadgeText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 9,
-    fontWeight: '800',
+    fontFamily: FONTS.bold,
   },
   languageToggle: {
-    backgroundColor: '#F2F2F7',
-    paddingHorizontal: 8,
+    backgroundColor: COLORS.cardBackground,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 3,
     borderRadius: 6,
   },
   languageToggleText: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#8E8E93',
+    fontFamily: FONTS.bold,
+    color: COLORS.muted,
   },
 })

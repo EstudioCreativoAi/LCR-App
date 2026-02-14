@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { Notification } from '../types/database'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
 
 interface NotificationCenterProps {
   onClose: () => void
@@ -138,7 +139,7 @@ export default function NotificationCenter({ onClose, onAction, userId }: Notifi
 
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
+          <ActivityIndicator size="large" color={COLORS.primary} />
         </View>
       ) : (
         <FlatList
@@ -163,7 +164,7 @@ export default function NotificationCenter({ onClose, onAction, userId }: Notifi
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: COLORS.background,
     position: 'absolute',
     top: 0,
     bottom: 0,
@@ -175,61 +176,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
+    padding: SPACING.md,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: COLORS.cardBackground,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
   closeButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 12,
   },
   closeButtonText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#007AFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
   },
   listContent: {
     padding: 12,
   },
   notificationCard: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 16,
-    padding: 16,
+    padding: SPACING.md,
     marginBottom: 12,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: COLORS.text,
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
+        shadowOpacity: 0.1,
         shadowRadius: 8,
       },
       android: {
         elevation: 2,
       },
       web: {
-        boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-      }
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      },
     } as any),
   },
   unreadCard: {
-    backgroundColor: '#F0F7FF',
+    backgroundColor: COLORS.cardBackground,
     borderLeftWidth: 4,
-    borderLeftColor: '#007AFF',
+    borderLeftColor: COLORS.accent,
   },
   iconContainer: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -248,27 +249,27 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
     flex: 1,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.accent,
     marginLeft: 8,
   },
   content: {
     fontSize: 14,
-    color: '#3A3A3C',
+    color: COLORS.text,
     lineHeight: 20,
     marginBottom: 6,
   },
   timestamp: {
     fontSize: 11,
-    color: '#8E8E93',
-    fontWeight: '500',
+    color: COLORS.muted,
+    fontFamily: FONTS.medium,
   },
   loadingContainer: {
     flex: 1,
@@ -283,12 +284,12 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     fontSize: 48,
-    marginBottom: 16,
+    marginBottom: SPACING.md,
     opacity: 0.5,
   },
   emptyText: {
     fontSize: 16,
-    color: '#8E8E93',
-    fontWeight: '500',
+    color: COLORS.muted,
+    fontFamily: FONTS.medium,
   },
 })

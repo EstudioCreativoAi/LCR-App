@@ -15,6 +15,7 @@ import { Lease, Property } from '../types/database'
 import { Session } from '@supabase/supabase-js'
 import { useTranslation } from 'react-i18next'
 import ReviewSystem from './ReviewSystem'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
 
 const IS_WEB = Platform.OS === 'web'
 
@@ -114,7 +115,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
         <Text style={styles.subtitle}>Manage your current and previous rentals</Text>
 
         {loading && !refreshing ? (
-          <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 40 }} />
+          <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
         ) : leases.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>🏢</Text>
@@ -149,31 +150,31 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: COLORS.background,
   },
   scrollContent: {
-    padding: 20,
+    padding: SPACING.md,
     paddingBottom: 40,
   },
   title: {
     fontSize: 28,
-    fontWeight: '800',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#8E8E93',
-    marginBottom: 24,
+    color: COLORS.muted,
+    marginBottom: SPACING.lg,
   },
   leaseCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#000',
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    shadowColor: COLORS.text,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 10,
     elevation: 3,
   },
@@ -181,85 +182,85 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   propertyAddress: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
     flex: 1,
     marginRight: 10,
   },
   statusBadge: {
-    backgroundColor: '#F2F2F7',
-    paddingHorizontal: 8,
+    backgroundColor: COLORS.cardBackground,
+    paddingHorizontal: SPACING.sm,
     paddingVertical: 4,
     borderRadius: 6,
   },
   statusBadgeCompleted: {
-    backgroundColor: '#E5F9E9',
+    backgroundColor: COLORS.cardBackground,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#8E8E93',
+    fontFamily: FONTS.bold,
+    color: COLORS.accent,
   },
   statusTextCompleted: {
-    color: '#34C759',
+    color: COLORS.primary,
   },
   leaseDetails: {
     flexDirection: 'row',
-    gap: 24,
-    marginBottom: 20,
+    gap: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   detailItem: {
     flex: 1,
   },
   detailLabel: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: COLORS.muted,
     marginBottom: 4,
-    fontWeight: '500',
+    fontFamily: FONTS.medium,
   },
   detailValue: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1C1C1E',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.text,
   },
   rateButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#007AFF',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
   rateButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: FONTS.bold,
   },
   emptyContainer: {
     alignItems: 'center',
     marginTop: 60,
-    paddingHorizontal: 40,
+    paddingHorizontal: SPACING.lg,
   },
   emptyIcon: {
     fontSize: 64,
-    marginBottom: 16,
+    marginBottom: SPACING.md,
     opacity: 0.3,
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
   },
   emptyText: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: COLORS.muted,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
-    padding: 20,
+    padding: SPACING.md,
     zIndex: 2000,
   },
   modalContent: {

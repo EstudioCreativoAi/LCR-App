@@ -14,6 +14,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { Property, Rating } from '../types/database'
 import { useTranslation } from 'react-i18next'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window')
 const IS_WEB = Platform.OS === 'web'
@@ -144,7 +145,7 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
             <View style={styles.reviewsSection}>
               <Text style={styles.sectionTitle}>Guest Reviews</Text>
               {loadingReviews ? (
-                <ActivityIndicator size="small" color="#007AFF" />
+                <ActivityIndicator size="small" color={COLORS.primary} />
               ) : reviews.length === 0 ? (
                 <Text style={styles.emptyReviews}>No reviews yet. Be the first to stay!</Text>
               ) : (
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     marginTop: IS_WEB ? 40 : 60,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
@@ -186,27 +187,27 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFFFFF',
+    padding: SPACING.md,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: COLORS.cardBackground,
   },
   backButton: {
-    padding: 8,
+    padding: SPACING.sm,
     marginRight: 10,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
   },
   backButtonText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#8E8E93',
+    fontFamily: FONTS.bold,
+    color: COLORS.muted,
   },
   headerTitle: {
     flex: 1,
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
   scrollContent: {
     paddingBottom: 100,
@@ -216,27 +217,27 @@ const styles = StyleSheet.create({
     height: 300,
   },
   content: {
-    padding: 24,
+    padding: SPACING.lg,
   },
   mainInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: SPACING.md,
   },
   price: {
     fontSize: 28,
-    fontWeight: '800',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
   priceLabel: {
     fontSize: 16,
-    color: '#8E8E93',
-    fontWeight: '400',
+    color: COLORS.muted,
+    fontFamily: FONTS.regular,
   },
   address: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: COLORS.muted,
     marginTop: 4,
   },
   avgRatingBadge: {
@@ -244,18 +245,18 @@ const styles = StyleSheet.create({
   },
   avgRatingText: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#FFCC00',
+    fontFamily: FONTS.bold,
+    color: COLORS.secondary,
   },
   reviewCount: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: COLORS.muted,
   },
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: '#F9F9F9',
+    backgroundColor: COLORS.background,
     borderRadius: 16,
-    padding: 16,
+    padding: SPACING.md,
     justifyContent: 'space-around',
     marginBottom: 30,
   },
@@ -268,32 +269,32 @@ const styles = StyleSheet.create({
   },
   statText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#3A3A3C',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.text,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 16,
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.md,
   },
   description: {
     fontSize: 16,
-    color: '#48484A',
+    color: COLORS.text,
     lineHeight: 24,
     marginBottom: 30,
   },
   reviewsSection: {
     marginTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#F2F2F7',
+    borderTopColor: COLORS.cardBackground,
     paddingTop: 30,
   },
   reviewCard: {
-    backgroundColor: '#FAFAFA',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
   },
   reviewHeader: {
     flexDirection: 'row',
@@ -312,15 +313,15 @@ const styles = StyleSheet.create({
   },
   reviewerName: {
     fontSize: 15,
-    fontWeight: '700',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
   reviewDate: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: COLORS.muted,
   },
   ratingBadge: {
-    backgroundColor: '#FFF9E5',
+    backgroundColor: COLORS.cardBackground,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
@@ -328,19 +329,19 @@ const styles = StyleSheet.create({
   },
   ratingText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#FFCC00',
+    fontFamily: FONTS.bold,
+    color: COLORS.secondary,
   },
   reviewComment: {
     fontSize: 15,
-    color: '#48484A',
+    color: COLORS.text,
     lineHeight: 20,
   },
   emptyReviews: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: COLORS.muted,
     fontStyle: 'italic',
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: SPACING.md,
   },
 })
