@@ -69,6 +69,12 @@ export interface Database {
         Update: AuditLogUpdate
         Relationships: []
       }
+      api_usage: {
+        Row: ApiUsage
+        Insert: ApiUsageInsert
+        Update: ApiUsageUpdate
+        Relationships: []
+      }
     }
     Views: {
       [_: string]: never
@@ -401,5 +407,23 @@ export interface AuditLogUpdate {
   action?: string
   target_id?: string | null
   metadata?: Json
+  created_at?: string
+}
+
+export interface ApiUsage {
+  id: string
+  user_id: string
+  created_at: string
+}
+
+export interface ApiUsageInsert {
+  id?: string
+  user_id: string
+  created_at?: string
+}
+
+export interface ApiUsageUpdate {
+  id?: string
+  user_id?: string
   created_at?: string
 }
