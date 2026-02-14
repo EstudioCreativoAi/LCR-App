@@ -11,7 +11,17 @@ import {
   Dimensions,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import { LinearGradient } from 'expo-linear-gradient'
 import SignatureCanvas from 'react-signature-canvas'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withSequence,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated'
 import { useSession } from '../../src/providers/SessionProvider'
 import { supabase } from '../../src/lib/supabase'
 import { generateLeasePreviewHtml } from '../../src/templates/leaseTemplate'
@@ -23,10 +33,14 @@ import {
 } from '../../src/services/leaseDocumentService'
 import { formatPrice } from '../../src/utils/currency'
 import { COLORS, SPACING, FONTS } from '../../src/theme/theme'
-import type { Lease, Property, Profile } from '../../src/types/database'
 import type { LeaseTemplateData } from '../../src/templates/leaseTemplate'
 
 type Phase = 'preview' | 'signing' | 'processing'
+
+const INK_BLUE = '#000080'
+const PARCHMENT = '#F5F0E8'
+const PARCHMENT_DARK = '#E8E0D0'
+const SEAL_RED = '#8B0000'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 
@@ -39,6 +53,71 @@ const DEMO_LEASE_DATA = {
   status: 'sent_for_signature',
   monthly_rent: 25000,
   deposit_amount: 25000,
+}
+
+function ProcessingScreen({ text }: { text: string }) {
+  const penX = useSharedValue(0)
+  const penRotate = useSharedValue(-15)
+  const dotOpacity1 = useSharedValue(0)
+  const dotOpacity2 = useSharedValue(0)
+  const dotOpacity3 = useSharedValue(0)
+
+  useEffect(() => {
+    penX.value = withRepeat(
+      withSequence(
+        withTiming(60, { duration: 1200, easing: Easing.bezier(0.4, 0, 0.6, 1) }),
+        withTiming(0, { duration: 1200, easing: Easing.bezier(0.4, 0, 0.6, 1) })
+      ),
+      -1,
+      false
+    )
+    penRotate.value = withRepeat(
+      withSequence(
+        withTiming(-5, { duration: 1200 }),
+        withTiming(-15, { duration: 1200 })
+      ),
+      -1,
+      false
+    )
+    dotOpacity1.value = withRepeat(
+      withSequence(withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 })),
+      -1, true
+    )
+    dotOpacity2.value = withRepeat(
+      withSequence(withTiming(0.3, { duration: 200 }), withTiming(1, { duration: 400 }), withTiming(0.3, { duration: 400 })),
+      -1, true
+    )
+    dotOpacity3.value = withRepeat(
+      withSequence(withTiming(0.3, { duration: 400 }), withTiming(0.3, { duration: 200 }), withTiming(1, { duration: 400 })),
+      -1, true
+    )
+  }, [])
+
+  const penStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: penX.value },
+      { rotate: `${penRotate.value}deg` },
+    ],
+  }))
+
+  const dot1 = useAnimatedStyle(() => ({ opacity: dotOpacity1.value }))
+  const dot2 = useAnimatedStyle(() => ({ opacity: dotOpacity2.value }))
+  const dot3 = useAnimatedStyle(() => ({ opacity: dotOpacity3.value }))
+
+  return (
+    <View style={styles.processingContainer}>
+      <View style={styles.processingCard}>
+        <Animated.Text style={[styles.processingPen, penStyle]}>✍️</Animated.Text>
+        <View style={styles.processingLine} />
+        <Text style={styles.processingText}>{text}</Text>
+        <View style={styles.processingDots}>
+          <Animated.View style={[styles.dot, dot1]} />
+          <Animated.View style={[styles.dot, dot2]} />
+          <Animated.View style={[styles.dot, dot3]} />
+        </View>
+      </View>
+    </View>
+  )
 }
 
 export default function SignLeaseScreen() {
@@ -55,7 +134,7 @@ export default function SignLeaseScreen() {
   const [loading, setLoading] = useState(true)
   const [agreed, setAgreed] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
-  const [processingText, setProcessingText] = useState('Generating your lease document...')
+  const [processingText, setProcessingText] = useState('Preparing your lease...')
 
   const fetchLeaseData = useCallback(async () => {
     try {
@@ -183,23 +262,18 @@ export default function SignLeaseScreen() {
         return
       }
 
-      // 1. Generate PDF
       setProcessingText('Generating your lease document...')
       const pdfBlob = await generateLeasePdf(templateData)
 
-      // 2. Upload signature
       setProcessingText('Uploading signature...')
       const signatureUrl = await uploadSignature(lease.id, signatureBase64)
 
-      // 3. Upload PDF
       setProcessingText('Uploading lease document...')
       const documentUrl = await uploadLeasePdf(lease.id, pdfBlob)
 
-      // 4. Finalize lease
       setProcessingText('Finalizing lease...')
       await finalizeLease(lease.id, signatureUrl, documentUrl)
 
-      // 5. Navigate to payment
       router.replace(`/pay/${leaseId}`)
     } catch (err: any) {
       console.error('Signing error:', err)
@@ -216,27 +290,18 @@ export default function SignLeaseScreen() {
     )
   }
 
-  // Phase 3: Processing overlay
   if (phase === 'processing') {
-    return (
-      <View style={styles.processingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.processingText}>{processingText}</Text>
-      </View>
-    )
+    return <ProcessingScreen text={processingText} />
   }
 
-  // Phase 2: Signature pad (landscape)
+  // Phase 2: Signature pad — full-screen landscape parchment
   if (phase === 'signing') {
     const isSmallScreen = SCREEN_WIDTH < 768
-    const canvasWidth = isSmallScreen ? Math.max(SCREEN_WIDTH, SCREEN_HEIGHT) - 40 : SCREEN_WIDTH - 80
-    const canvasHeight = isSmallScreen ? Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) - 120 : 400
+    const canvasWidth = isSmallScreen ? Math.max(SCREEN_WIDTH, SCREEN_HEIGHT) - 48 : Math.min(SCREEN_WIDTH - 80, 900)
+    const canvasHeight = isSmallScreen ? Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) - 140 : 420
 
     return (
-      <View style={[
-        styles.sigContainer,
-        isSmallScreen && styles.sigContainerLandscape,
-      ]}>
+      <View style={styles.sigContainer}>
         <View style={[
           styles.sigInner,
           isSmallScreen && {
@@ -245,46 +310,83 @@ export default function SignLeaseScreen() {
             height: SCREEN_WIDTH,
           },
         ]}>
+          {/* Header bar */}
           <View style={styles.sigHeader}>
-            <Text style={styles.sigTitle}>Sign below</Text>
+            <TouchableOpacity onPress={() => setPhase('preview')}>
+              <Text style={styles.sigBackText}>← Back</Text>
+            </TouchableOpacity>
+            <Text style={styles.sigTitle}>Your Signature</Text>
             <View style={styles.sigActions}>
               <TouchableOpacity style={styles.sigClearBtn} onPress={handleClearSignature}>
                 <Text style={styles.sigClearText}>Clear</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.sigDoneBtn} onPress={handleDoneSignature}>
-                <Text style={styles.sigDoneText}>Done</Text>
+                <Text style={styles.sigDoneText}>Complete</Text>
               </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.sigCanvasWrapper}>
-            <SignatureCanvas
-              ref={sigCanvasRef}
-              penColor="#000000"
-              minWidth={1.5}
-              maxWidth={3}
-              canvasProps={{
-                width: canvasWidth,
-                height: canvasHeight,
-                style: {
-                  backgroundColor: '#fff',
-                  borderRadius: 12,
-                  border: '2px solid #ddd',
-                },
-              }}
-            />
+
+          {/* Parchment signature area */}
+          <View style={styles.parchmentFrame}>
+            {/* Decorative top rule */}
+            <View style={styles.parchmentRule} />
+
+            <Text style={styles.parchmentLabel}>
+              I, {renterName}, hereby sign this lease agreement
+            </Text>
+
+            {/* Canvas with paper texture */}
+            <View style={styles.sigCanvasOuter}>
+              <SignatureCanvas
+                ref={sigCanvasRef}
+                penColor={INK_BLUE}
+                minWidth={1.5}
+                maxWidth={3.5}
+                velocityFilterWeight={0.7}
+                canvasProps={{
+                  width: canvasWidth,
+                  height: canvasHeight,
+                  style: {
+                    backgroundColor: PARCHMENT,
+                    borderRadius: 8,
+                    border: `1px solid ${PARCHMENT_DARK}`,
+                    boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.06)',
+                    backgroundImage: `
+                      repeating-linear-gradient(
+                        0deg,
+                        transparent,
+                        transparent 31px,
+                        ${PARCHMENT_DARK} 31px,
+                        ${PARCHMENT_DARK} 32px
+                      )
+                    `,
+                    backgroundPosition: '0 24px',
+                  },
+                }}
+              />
+            </View>
+
+            {/* Bottom rule with X mark */}
+            <View style={styles.signatureXRow}>
+              <Text style={styles.signatureX}>X</Text>
+              <View style={styles.signatureBaseline} />
+            </View>
+
+            {/* Decorative bottom rule */}
+            <View style={styles.parchmentRule} />
           </View>
-          <TouchableOpacity
-            style={styles.sigCancelBtn}
-            onPress={() => setPhase('preview')}
-          >
-            <Text style={styles.sigCancelText}>Cancel</Text>
-          </TouchableOpacity>
+
+          {/* Ink color indicator */}
+          <View style={styles.inkIndicator}>
+            <View style={[styles.inkDot, { backgroundColor: INK_BLUE }]} />
+            <Text style={styles.inkLabel}>Ink Blue</Text>
+          </View>
         </View>
       </View>
     )
   }
 
-  // Phase 1: Lease preview
+  // Phase 1: Lease preview with document-style design
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -293,21 +395,54 @@ export default function SignLeaseScreen() {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
-        <Text style={styles.title}>Your Lease Agreement</Text>
-        <Text style={styles.subtitle}>
-          {property?.address}, {property?.city}
-        </Text>
+        {/* Document header */}
+        <View style={styles.docHeader}>
+          <View style={styles.sealBadge}>
+            <Text style={styles.sealText}>LCR</Text>
+          </View>
+          <View style={styles.docHeaderText}>
+            <Text style={styles.title}>Lease Agreement</Text>
+            <Text style={styles.subtitle}>
+              {property?.address}, {property?.city}
+            </Text>
+          </View>
+        </View>
+
+        {/* Quick terms summary */}
+        <View style={styles.termsSummary}>
+          <View style={styles.termItem}>
+            <Text style={styles.termLabel}>Rent</Text>
+            <Text style={styles.termValue}>{formatPrice(lease?.monthly_rent || 0)}</Text>
+          </View>
+          <View style={styles.termDivider} />
+          <View style={styles.termItem}>
+            <Text style={styles.termLabel}>Deposit</Text>
+            <Text style={styles.termValue}>{formatPrice(lease?.deposit_amount || 0)}</Text>
+          </View>
+          <View style={styles.termDivider} />
+          <View style={styles.termItem}>
+            <Text style={styles.termLabel}>Term</Text>
+            <Text style={styles.termValue}>
+              {lease ? Math.round((new Date(lease.end_date).getTime() - new Date(lease.start_date).getTime()) / (30.44 * 86400000)) : 12} mo
+            </Text>
+          </View>
+        </View>
 
         {/* Lease document preview */}
         <View style={styles.leasePreviewCard}>
+          <View style={styles.previewHeader}>
+            <Text style={styles.previewHeaderText}>FULL AGREEMENT</Text>
+            <View style={styles.previewHeaderLine} />
+          </View>
           {Platform.OS === 'web' ? (
             <div
               style={{
                 fontSize: '12px',
-                lineHeight: '1.5',
-                maxHeight: 500,
+                lineHeight: '1.6',
+                maxHeight: 450,
                 overflowY: 'auto' as any,
-                padding: '16px',
+                padding: '20px 24px',
+                fontFamily: 'Georgia, serif',
               }}
               dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
@@ -339,8 +474,20 @@ export default function SignLeaseScreen() {
           disabled={!agreed}
           activeOpacity={0.8}
         >
-          <Text style={styles.signButtonText}>Sign Lease</Text>
+          <LinearGradient
+            colors={agreed ? [INK_BLUE, '#000066'] : ['#999', '#888']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.signButtonGradient}
+          >
+            <Text style={styles.signButtonIcon}>✍️</Text>
+            <Text style={styles.signButtonText}>Sign Lease Agreement</Text>
+          </LinearGradient>
         </TouchableOpacity>
+
+        <Text style={styles.legalNote}>
+          By signing, you enter a binding residential lease under the laws of Baja California Sur, Mexico.
+        </Text>
       </ScrollView>
     </View>
   )
@@ -359,8 +506,11 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: SPACING.lg,
-    paddingTop: Platform.OS === 'web' ? 20 : 50,
+    paddingTop: Platform.OS === 'web' ? 24 : 50,
     paddingBottom: 60,
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
   },
   backButton: {
     alignSelf: 'flex-start',
@@ -375,18 +525,83 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.text,
   },
+  // Document header with seal
+  docHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  sealBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: SEAL_RED,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    shadowColor: SEAL_RED,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  sealText: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: '#FFD700',
+    letterSpacing: 2,
+  },
+  docHeaderText: {
+    flex: 1,
+  },
   title: {
     fontFamily: FONTS.bold,
-    fontSize: 24,
+    fontSize: 26,
     color: COLORS.text,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   subtitle: {
     fontFamily: FONTS.regular,
     fontSize: 14,
     color: COLORS.muted,
-    marginBottom: SPACING.lg,
   },
+  // Terms summary bar
+  termsSummary: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    alignItems: 'center',
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  termItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  termLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  termValue: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.text,
+  },
+  termDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: COLORS.background,
+  },
+  // Lease preview
   leasePreviewCard: {
     backgroundColor: COLORS.white,
     borderRadius: 16,
@@ -398,6 +613,22 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
+  previewHeader: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  previewHeaderText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: COLORS.muted,
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  previewHeaderLine: {
+    height: 1,
+    backgroundColor: COLORS.background,
+  },
   leasePreviewFallback: {
     padding: SPACING.lg,
     fontFamily: FONTS.regular,
@@ -405,6 +636,7 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     textAlign: 'center',
   },
+  // Checkbox
   checkboxRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -422,8 +654,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   checkboxChecked: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: INK_BLUE,
+    borderColor: INK_BLUE,
   },
   checkmark: {
     color: COLORS.white,
@@ -437,41 +669,56 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     lineHeight: 20,
   },
+  // Sign button
   signButton: {
-    backgroundColor: COLORS.primary,
-    height: 56,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.primary,
+    overflow: 'hidden',
+    shadowColor: INK_BLUE,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 5,
   },
   signButtonDisabled: {
     opacity: 0.4,
+    shadowOpacity: 0,
+  },
+  signButtonGradient: {
+    height: 58,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  signButtonIcon: {
+    fontSize: 22,
   },
   signButtonText: {
     fontFamily: FONTS.bold,
     fontSize: 18,
     color: COLORS.white,
   },
-  // Signature pad styles
+  legalNote: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.muted,
+    textAlign: 'center',
+    marginTop: SPACING.md,
+    lineHeight: 16,
+  },
+  // ── Signature pad (Phase 2) ──
   sigContainer: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#2C2C2E',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  sigContainerLandscape: {
     overflow: 'hidden',
   },
   sigInner: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
   sigHeader: {
     flexDirection: 'row',
@@ -480,53 +727,110 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 16,
   },
+  sigBackText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+  },
   sigTitle: {
     fontFamily: FONTS.bold,
-    fontSize: 20,
-    color: COLORS.text,
+    fontSize: 18,
+    color: COLORS.white,
   },
   sigActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   sigClearBtn: {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: COLORS.white,
+    backgroundColor: 'rgba(255,255,255,0.1)',
     borderWidth: 1,
-    borderColor: COLORS.muted,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   sigClearText: {
     fontFamily: FONTS.semiBold,
     fontSize: 14,
-    color: COLORS.text,
+    color: COLORS.white,
   },
   sigDoneBtn: {
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: COLORS.primary,
+    backgroundColor: INK_BLUE,
   },
   sigDoneText: {
     fontFamily: FONTS.bold,
     fontSize: 14,
     color: COLORS.white,
   },
-  sigCanvasWrapper: {
+  // Parchment frame
+  parchmentFrame: {
+    backgroundColor: PARCHMENT,
     borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  parchmentRule: {
+    height: 2,
+    backgroundColor: PARCHMENT_DARK,
+    marginVertical: 8,
+  },
+  parchmentLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: '#666',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  sigCanvasOuter: {
+    borderRadius: 8,
     overflow: 'hidden',
   },
-  sigCancelBtn: {
-    marginTop: 16,
-    paddingVertical: 10,
+  signatureXRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginTop: 12,
+    paddingHorizontal: 4,
   },
-  sigCancelText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: COLORS.muted,
+  signatureX: {
+    fontFamily: FONTS.bold,
+    fontSize: 20,
+    color: '#999',
+    marginRight: 8,
   },
-  // Processing
+  signatureBaseline: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#CCC',
+    marginBottom: 4,
+  },
+  // Ink indicator
+  inkIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  inkDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  inkLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.5)',
+  },
+  // ── Processing (Phase 3) ──
   processingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -534,11 +838,45 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     padding: SPACING.xl,
   },
+  processingCard: {
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 24,
+    padding: 40,
+    paddingHorizontal: 50,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  processingPen: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  processingLine: {
+    width: 120,
+    height: 2,
+    backgroundColor: INK_BLUE,
+    borderRadius: 1,
+    marginBottom: 20,
+    opacity: 0.3,
+  },
   processingText: {
     fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: COLORS.text,
-    marginTop: SPACING.lg,
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  processingDots: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: INK_BLUE,
   },
 })
