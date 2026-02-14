@@ -7,25 +7,25 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Platform,
   RefreshControl,
 } from 'react-native'
 import { supabase } from '../lib/supabase'
-import { Lease, Property } from '../types/database'
 import { Session } from '@supabase/supabase-js'
-import { useTranslation } from 'react-i18next'
 import ReviewSystem from './ReviewSystem'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
-
-const IS_WEB = Platform.OS === 'web'
 
 interface RenterLeaseDashboardProps {
   session: Session
   isDemo?: boolean
 }
 
+function getNextRentDue(startDate: string): string {
+  const start = new Date(startDate)
+  const next = new Date(start.getFullYear(), start.getMonth() + 1, start.getDate())
+  return next.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
 export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDashboardProps) {
-  const { t } = useTranslation()
   const [leases, setLeases] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -44,7 +44,30 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setLeases(data || [])
+      let result = data || []
+      if (isDemo && result.length === 0) {
+        result = [
+          {
+            id: 'demo-lease-1',
+            property_id: 'demo-prop-1',
+            renter_id: session.user.id,
+            start_date: new Date().toISOString().split('T')[0],
+            end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            status: 'active',
+            monthly_rent: 45000,
+            deposit_amount: 90000,
+            envelope_id: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            properties: {
+              address: 'El Tezal, Cabo San Lucas',
+              city: 'Cabo San Lucas',
+              description: 'Modern Villa with Ocean View',
+            },
+          },
+        ]
+      }
+      setLeases(result)
     } catch (error) {
       console.error('Error fetching renter leases:', error)
       if (!isDemo) Alert.alert('Error', 'Failed to load your leases.')
@@ -63,39 +86,107 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
     fetchLeases()
   }
 
+  const handlePayNextMonth = () => {
+    Alert.alert('Coming Soon', 'Payment integration will be available in a future update.')
+  }
+
+  const handleViewLease = () => {
+    Alert.alert('Coming Soon', 'Lease document viewer will be available in a future update.')
+  }
+
+  const handleContactLandlord = () => {
+    Alert.alert('Coming Soon', 'Messaging will be available in a future update.')
+  }
+
   const renderLeaseCard = (lease: any) => {
     const isCompleted = lease.status === 'completed'
+    const isActive = lease.status === 'active'
     const property = lease.properties
+    const propertyTitle = property?.description?.slice(0, 50) || property?.address || 'Property'
+    const depositStatus = lease.deposit_amount != null && lease.deposit_amount > 0 ? 'Paid' : 'Pending'
+    const nextRentDue = lease.start_date ? getNextRentDue(lease.start_date) : 'N/A'
+
+    const statusBadgeStyle = [
+      styles.statusBadge,
+      { backgroundColor: COLORS.cardBackground },
+    ]
+    const statusTextStyle = [
+      styles.statusText,
+      isActive && { color: COLORS.primary },
+      isCompleted && { color: COLORS.secondary },
+      !isActive && !isCompleted && { color: COLORS.accent },
+    ]
 
     return (
-      <View key={lease.id} style={styles.leaseCard}>
-        <View style={styles.leaseHeader}>
-          <Text style={styles.propertyAddress}>{property?.address || 'Property'}</Text>
-          <View style={[styles.statusBadge, isCompleted && styles.statusBadgeCompleted]}>
-            <Text style={[styles.statusText, isCompleted && styles.statusTextCompleted]}>
-              {lease.status.toUpperCase()}
-            </Text>
+      <View key={lease.id} style={{ marginBottom: SPACING.xl }}>
+        {/* Header Section */}
+        <View style={styles.header}>
+          <Text style={styles.sectionTitle}>
+            {leases.length === 1 ? 'My Lease' : property?.address || 'Lease'}
+          </Text>
+          <View style={statusBadgeStyle}>
+            <Text style={statusTextStyle}>{lease.status.toUpperCase()}</Text>
           </View>
         </View>
 
-        <View style={styles.leaseDetails}>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Monthly Rent</Text>
-            <Text style={styles.detailValue}>
-              {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(lease.monthly_rent || 0)}
+        {/* Property Overview Card */}
+        <TouchableOpacity style={styles.card} onPress={handleViewLease} activeOpacity={0.8}>
+          <Text style={styles.propertyTitle}>{propertyTitle}</Text>
+          <Text style={styles.address}>📍 {property?.address || '—'}, {property?.city || ''}</Text>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <View>
+              <Text style={styles.label}>Start Date</Text>
+              <Text style={styles.value}>
+                {lease.start_date ? new Date(lease.start_date).toLocaleDateString() : 'N/A'}
+              </Text>
+            </View>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={styles.label}>Monthly Rent</Text>
+              <Text style={styles.value}>
+                {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(lease.monthly_rent || 0)}
+              </Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Financials Section */}
+        <Text style={styles.sectionTitle}>Financials</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <Text style={styles.infoLabel}>Security Deposit</Text>
+            <Text style={[styles.infoValue, { color: depositStatus === 'Paid' ? COLORS.primary : COLORS.muted }]}>
+              {depositStatus}
             </Text>
           </View>
-          <View style={styles.detailItem}>
-            <Text style={styles.detailLabel}>Start Date</Text>
-            <Text style={styles.detailValue}>
-              {lease.start_date ? new Date(lease.start_date).toLocaleDateString() : 'N/A'}
-            </Text>
+          <View style={[styles.row, { marginTop: SPACING.md }]}>
+            <Text style={styles.infoLabel}>Next Rent Due</Text>
+            <Text style={styles.infoValue}>{nextRentDue}</Text>
           </View>
+
+          {isActive && (
+            <TouchableOpacity style={styles.payButton} onPress={handlePayNextMonth}>
+              <Text style={styles.payButtonText}>Pay Next Month</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Management Section */}
+        <Text style={styles.sectionTitle}>Management</Text>
+        <View style={styles.actionRow}>
+          <TouchableOpacity style={styles.smallCard} onPress={handleViewLease}>
+            <Text style={styles.actionIcon}>📄</Text>
+            <Text style={styles.actionText}>View Lease</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.smallCard} onPress={handleContactLandlord}>
+            <Text style={styles.actionIcon}>💬</Text>
+            <Text style={styles.actionText}>Contact Landlord</Text>
+          </TouchableOpacity>
         </View>
 
         {isCompleted && (
           <TouchableOpacity
-            style={styles.rateButton}
+            style={[styles.rateButton, { marginTop: SPACING.lg }]}
             onPress={() => setShowRatingModal({ propertyId: lease.property_id, leaseId: lease.id })}
           >
             <Text style={styles.rateButtonText}>★ Rate Your Stay</Text>
@@ -134,10 +225,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
               raterId={session.user.id}
               propertyId={showRatingModal.propertyId}
               category="property"
-              onSubmitSuccess={() => {
-                setShowRatingModal(null)
-                // Optionally refresh or show success
-              }}
+              onSubmitSuccess={() => setShowRatingModal(null)}
               onCancel={() => setShowRatingModal(null)}
             />
           </View>
@@ -153,12 +241,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   scrollContent: {
-    padding: SPACING.md,
+    padding: SPACING.lg,
     paddingBottom: 40,
   },
   title: {
-    fontSize: 28,
     fontFamily: FONTS.bold,
+    fontSize: 28,
     color: COLORS.text,
     marginBottom: 4,
   },
@@ -167,65 +255,121 @@ const styles = StyleSheet.create({
     color: COLORS.muted,
     marginBottom: SPACING.lg,
   },
-  leaseCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 16,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-    shadowColor: COLORS.text,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  leaseHeader: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  propertyAddress: {
-    fontSize: 18,
+  sectionTitle: {
     fontFamily: FONTS.bold,
+    fontSize: 20,
     color: COLORS.text,
     flex: 1,
     marginRight: 10,
   },
   statusBadge: {
-    backgroundColor: COLORS.cardBackground,
-    paddingHorizontal: SPACING.sm,
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusBadgeCompleted: {
-    backgroundColor: COLORS.cardBackground,
+    borderRadius: 20,
   },
   statusText: {
-    fontSize: 10,
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+  },
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    elevation: 2,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+  },
+  propertyTitle: {
     fontFamily: FONTS.bold,
-    color: COLORS.accent,
+    fontSize: 18,
+    color: COLORS.text,
   },
-  statusTextCompleted: {
-    color: COLORS.primary,
+  address: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.muted,
+    marginTop: 4,
   },
-  leaseDetails: {
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.background,
+    marginVertical: SPACING.md,
+  },
+  row: {
     flexDirection: 'row',
-    gap: SPACING.lg,
-    marginBottom: SPACING.md,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  detailItem: {
-    flex: 1,
-  },
-  detailLabel: {
+  label: {
+    fontFamily: FONTS.medium,
     fontSize: 12,
     color: COLORS.muted,
-    marginBottom: 4,
-    fontFamily: FONTS.medium,
   },
-  detailValue: {
+  value: {
+    fontFamily: FONTS.bold,
     fontSize: 15,
-    fontFamily: FONTS.semiBold,
     color: COLORS.text,
+    marginTop: 2,
+  },
+  infoLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  infoValue: {
+    fontFamily: FONTS.bold,
+    fontSize: 15,
+    color: COLORS.text,
+  },
+  payButton: {
+    backgroundColor: COLORS.primary,
+    height: 50,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: SPACING.lg,
+  },
+  payButtonText: {
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
+    fontSize: 16,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: SPACING.lg,
+  },
+  smallCard: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    padding: SPACING.md,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+  },
+  actionIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  actionText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: COLORS.text,
+    textAlign: 'center',
   },
   rateButton: {
     backgroundColor: COLORS.primary,
