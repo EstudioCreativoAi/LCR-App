@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { RatingCategory } from '../types/database'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
 
 const IS_WEB = Platform.OS === 'web'
 
@@ -104,7 +105,7 @@ export default function ReviewSystem({
       <TextInput
         style={styles.commentInput}
         placeholder="Add a comment (optional)..."
-        placeholderTextColor="#8E8E93"
+        placeholderTextColor={COLORS.muted}
         multiline
         numberOfLines={4}
         value={comment}
@@ -127,7 +128,7 @@ export default function ReviewSystem({
           disabled={isSubmitting || rating === 0}
         >
           {isSubmitting ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={COLORS.white} />
           ) : (
             <Text style={styles.submitButtonText}>Submit Review</Text>
           )}
@@ -139,13 +140,13 @@ export default function ReviewSystem({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 20,
-    padding: 24,
+    padding: SPACING.lg,
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
-    shadowColor: '#000',
+    shadowColor: COLORS.text,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,
     shadowRadius: 20,
@@ -153,43 +154,43 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   subtitle: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: COLORS.muted,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: SPACING.lg,
     lineHeight: 20,
   },
   starsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 24,
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   starButton: {
     padding: 4,
   },
   starIcon: {
     fontSize: 40,
-    color: '#E5E5EA',
+    color: COLORS.muted,
   },
   starIconActive: {
-    color: '#FFCC00',
+    color: COLORS.secondary,
   },
   commentInput: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 12,
-    padding: 16,
+    padding: SPACING.md,
     fontSize: 16,
-    color: '#1C1C1E',
+    color: COLORS.text,
     minHeight: 120,
     textAlignVertical: 'top',
-    marginBottom: 24,
+    marginBottom: SPACING.lg,
     ...(IS_WEB ? { outlineStyle: 'none' } : {}) as any,
   },
   buttonRow: {
@@ -201,31 +202,31 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.muted,
   },
   submitButton: {
     flex: 2,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    backgroundColor: '#007AFF',
-    shadowColor: '#007AFF',
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
   submitButtonDisabled: {
-    backgroundColor: '#C7C7CC',
+    backgroundColor: COLORS.muted,
     shadowOpacity: 0,
   },
   submitButtonText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
   },
 })

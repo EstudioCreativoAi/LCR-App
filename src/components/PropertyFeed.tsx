@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { supabase } from '../lib/supabase'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { UserRole, Property as DBProperty } from '../types/database'
 import SearchFilterModal, { SearchFilters } from './SearchFilterModal'
 import PropertyDetail from './PropertyDetail'
@@ -177,7 +178,7 @@ const PropertyCard = ({
             disabled={sendingLead}
           >
             {sendingLead ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={COLORS.white} />
             ) : (
               <Text style={styles.interestButtonText}>{t('common.interested')}</Text>
             )}
@@ -364,7 +365,7 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
             <TextInput
               style={styles.searchInput}
               placeholder={t('common.search')}
-              placeholderTextColor="#8E8E93"
+              placeholderTextColor={COLORS.muted}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="words"
@@ -397,7 +398,7 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
+            <ActivityIndicator size="large" color={COLORS.primary} />
           </View>
         ) : properties.length === 0 ? (
           <View style={styles.emptyContainer}>
@@ -444,124 +445,124 @@ const styles = StyleSheet.create({
   mainWrapper: {
     flex: 1,
     alignItems: 'center',
-    backgroundColor: '#F9F9F9',
+    backgroundColor: COLORS.background,
   },
-  container: { 
-    flex: 1, 
-    width: '100%', 
+  container: {
+    flex: 1,
+    width: '100%',
     maxWidth: MAX_CONTENT_WIDTH,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     ...(IS_WEB ? {
-      shadowColor: '#000',
+      shadowColor: COLORS.text,
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
+      shadowOpacity: 0.08,
       shadowRadius: 12,
-    } : {})
+    } : {}),
   },
-  searchContainer: { 
-    flexDirection: 'row', 
-    padding: 16, 
-    backgroundColor: '#FFFFFF', 
+  searchContainer: {
+    flexDirection: 'row',
+    padding: SPACING.md,
+    backgroundColor: COLORS.white,
     gap: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: COLORS.cardBackground,
   },
-  searchBar: { 
-    flex: 1, 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: '#F2F2F7', 
-    borderRadius: 24, 
-    paddingHorizontal: 16, 
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 24,
+    paddingHorizontal: SPACING.md,
     height: 48,
   },
-  searchIcon: { fontSize: 16, marginRight: 8 },
-  searchInput: { flex: 1, fontSize: 16, color: '#000000', outlineStyle: 'none' } as any,
-  clearIcon: { fontSize: 16, color: '#8E8E93', padding: 4 },
-  filterButton: { 
-    width: 48, 
-    height: 48, 
-    borderRadius: 24, 
-    backgroundColor: '#FFFFFF', 
-    justifyContent: 'center', 
+  searchIcon: { fontSize: 16, marginRight: SPACING.sm },
+  searchInput: { flex: 1, fontSize: 16, color: COLORS.text, outlineStyle: 'none' } as any,
+  clearIcon: { fontSize: 16, color: COLORS.muted, padding: 4 },
+  filterButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.secondary,
   },
   filterButtonActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   filterIcon: { fontSize: 20 },
-  filterIconActive: {  },
-  filterBadge: { 
-    position: 'absolute', 
-    top: -4, 
-    right: -4, 
-    backgroundColor: '#FF3B30', 
-    borderRadius: 10, 
-    minWidth: 20, 
-    height: 20, 
-    justifyContent: 'center', 
+  filterIconActive: {},
+  filterBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: COLORS.accent,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: COLORS.white,
   },
-  filterBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
-  resultsContainer: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FAFAFA' },
-  resultsText: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
-  listContent: { padding: 16, gap: 24 },
-  card: { 
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 16, 
-    overflow: 'hidden', 
-    elevation: 4, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.1, 
+  filterBadgeText: { color: COLORS.white, fontSize: 11, fontFamily: FONTS.bold },
+  resultsContainer: { paddingHorizontal: SPACING.md, paddingVertical: 12, backgroundColor: COLORS.cardBackground },
+  resultsText: { fontSize: 13, color: COLORS.muted, fontFamily: FONTS.medium },
+  listContent: { padding: SPACING.md, gap: SPACING.lg },
+  card: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
     shadowRadius: 12,
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
-  photoCarousel: { width: '100%', height: 280, backgroundColor: '#F2F2F7' },
+  photoCarousel: { width: '100%', height: 280, backgroundColor: COLORS.cardBackground },
   photo: { width: CARD_WIDTH, height: 280 },
-  indicatorContainer: { 
-    position: 'absolute', 
-    bottom: 16, 
-    left: 0, 
-    right: 0, 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
+  indicatorContainer: {
+    position: 'absolute',
+    bottom: SPACING.md,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6
+    gap: 6,
   },
   indicator: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255, 255, 255, 0.4)' },
-  indicatorActive: { backgroundColor: '#FFFFFF', width: 8, height: 8 },
-  cardContent: { padding: 20 },
+  indicatorActive: { backgroundColor: COLORS.white, width: 8, height: 8 },
+  cardContent: { padding: SPACING.md },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  price: { fontSize: 22, fontWeight: '800', color: '#1C1C1E' },
-  priceLabel: { fontSize: 14, color: '#8E8E93', fontWeight: '400' },
-  typeBadge: { backgroundColor: '#F2F2F7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  typeBadgeText: { fontSize: 12, fontWeight: '600', color: '#8E8E93', textTransform: 'uppercase' },
-  address: { fontSize: 17, fontWeight: '600', color: '#1C1C1E', marginBottom: 4 },
-  city: { fontSize: 15, color: '#8E8E93', marginBottom: 16 },
-  detailsRow: { flexDirection: 'row', gap: 20 },
+  price: { fontSize: 22, fontFamily: FONTS.bold, color: COLORS.text },
+  priceLabel: { fontSize: 14, color: COLORS.muted, fontFamily: FONTS.regular },
+  typeBadge: { backgroundColor: COLORS.cardBackground, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  typeBadgeText: { fontSize: 12, fontFamily: FONTS.semiBold, color: COLORS.muted, textTransform: 'uppercase' },
+  address: { fontSize: 17, fontFamily: FONTS.semiBold, color: COLORS.text, marginBottom: 4 },
+  city: { fontSize: 15, color: COLORS.muted, marginBottom: SPACING.md },
+  detailsRow: { flexDirection: 'row', gap: SPACING.md },
   detailItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   detailIcon: { fontSize: 18 },
-  detailText: { fontSize: 15, color: '#3A3A3C', fontWeight: '500' },
-  availableRow: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#F2F2F7' },
-  availableText: { fontSize: 13, color: '#007AFF', fontWeight: '600' },
+  detailText: { fontSize: 15, color: COLORS.text, fontFamily: FONTS.medium },
+  availableRow: { marginTop: SPACING.md, paddingTop: SPACING.md, borderTopWidth: 1, borderTopColor: COLORS.cardBackground },
+  availableText: { fontSize: 13, color: COLORS.primary, fontFamily: FONTS.semiBold },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 400 },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 48, minHeight: 400 },
-  emptyIcon: { fontSize: 64, marginBottom: 20, opacity: 0.5 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: '#1C1C1E', marginBottom: 8 },
-  emptyText: { fontSize: 15, color: '#8E8E93', textAlign: 'center' },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: SPACING.lg, minHeight: 400 },
+  emptyIcon: { fontSize: 64, marginBottom: SPACING.md, opacity: 0.5 },
+  emptyTitle: { fontSize: 20, fontFamily: FONTS.bold, color: COLORS.text, marginBottom: SPACING.sm },
+  emptyText: { fontSize: 15, fontFamily: FONTS.regular, color: COLORS.muted, textAlign: 'center' },
   interestButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 16,
-    shadowColor: '#007AFF',
+    marginTop: SPACING.md,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -570,17 +571,17 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   interestButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: FONTS.bold,
   },
   ratingRow: {
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   ratingText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#FFCC00',
+    fontFamily: FONTS.bold,
+    color: COLORS.secondary,
   },
 })
 

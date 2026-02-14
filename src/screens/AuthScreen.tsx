@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { supabase } from '../lib/supabase';
 import type { UserRole } from '../types/database';
+import { COLORS, SPACING, FONTS } from '../theme/theme';
 
 interface AuthScreenProps {
   onEnterDemo: (role: UserRole) => void
@@ -88,7 +89,7 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
         <TextInput
           style={styles.input}
           placeholder="Email address"
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={COLORS.muted}
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
@@ -98,39 +99,39 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#9ca3af"
+          placeholderTextColor={COLORS.muted}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
         />
 
-        {/* Role selector only relevant during sign-up */}
-        {isSignUp && (
-          <View style={styles.roleContainer}>
-            <Text style={styles.roleLabel}>I am a:</Text>
-            <View style={styles.roleSelector}>
-              {(['renter', 'landlord', 'agent'] as UserRole[]).map((r) => (
-                <TouchableOpacity
-                  key={r}
+        {/* Role selector: used for sign-up and for demo perspective */}
+        <View style={styles.roleContainer}>
+          <Text style={styles.roleLabel}>
+            {isSignUp ? 'I am a:' : 'Demo as:'}
+          </Text>
+          <View style={styles.roleSelector}>
+            {(['renter', 'landlord', 'agent'] as UserRole[]).map((r) => (
+              <TouchableOpacity
+                key={r}
+                style={[
+                  styles.roleButton,
+                  role === r && styles.roleButtonSelected,
+                ]}
+                onPress={() => setRole(r)}
+              >
+                <Text
                   style={[
-                    styles.roleButton,
-                    role === r && styles.roleButtonSelected,
+                    styles.roleButtonText,
+                    role === r && styles.roleButtonTextSelected,
                   ]}
-                  onPress={() => setRole(r)}
                 >
-                  <Text
-                    style={[
-                      styles.roleButtonText,
-                      role === r && styles.roleButtonTextSelected,
-                    ]}
-                  >
-                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  {r.charAt(0).toUpperCase() + r.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
+        </View>
 
         <TouchableOpacity
           style={styles.authButton}
@@ -138,7 +139,7 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={COLORS.white} />
           ) : (
             <Text style={styles.authButtonText}>
               {isSignUp ? 'Sign Up' : 'Sign In'}
@@ -174,48 +175,48 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
-    padding: 24,
+    padding: SPACING.xl,
     justifyContent: 'center',
   },
   header: {
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#111827',
+    fontSize: 32,
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: SPACING.sm,
   },
   subHeader: {
     fontSize: 16,
-    color: '#6B7280',
+    color: COLORS.muted,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: SPACING.xl,
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    padding: 16,
+    borderColor: COLORS.secondary,
+    borderRadius: 12,
+    padding: SPACING.md,
     fontSize: 16,
-    color: '#111827',
-    marginBottom: 16,
+    color: COLORS.text,
+    marginBottom: SPACING.md,
   },
   roleContainer: {
-    marginBottom: 24,
+    marginBottom: SPACING.lg,
   },
   roleLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.text,
     marginBottom: 12,
   },
   roleSelector: {
     flexDirection: 'row',
-    backgroundColor: '#E5E7EB',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     padding: 4,
   },
@@ -226,8 +227,8 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   roleButtonSelected: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    backgroundColor: COLORS.white,
+    shadowColor: COLORS.text,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -235,46 +236,46 @@ const styles = StyleSheet.create({
   },
   roleButtonText: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontFamily: FONTS.medium,
+    color: COLORS.muted,
   },
   roleButtonTextSelected: {
-    color: '#111827',
-    fontWeight: '600',
+    color: COLORS.text,
+    fontFamily: FONTS.semiBold,
   },
   authButton: {
-    backgroundColor: '#2563EB',
-    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: SPACING.sm,
   },
   authButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: COLORS.white,
+    fontFamily: FONTS.bold,
     fontSize: 16,
   },
   toggleButton: {
-    marginTop: 24,
+    marginTop: SPACING.lg,
     alignItems: 'center',
   },
   toggleText: {
-    color: '#4F46E5',
+    color: COLORS.accent,
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: FONTS.medium,
   },
   demoButton: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: COLORS.cardBackground,
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#10B981',
+    borderColor: COLORS.secondary,
   },
   demoButtonText: {
-    color: '#047857',
-    fontWeight: '600',
+    color: COLORS.text,
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
   },
 });
