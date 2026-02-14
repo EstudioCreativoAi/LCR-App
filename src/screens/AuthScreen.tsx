@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Alert, 
-  ActivityIndicator, 
-  SafeAreaView 
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+  SafeAreaView
 } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { UserRole } from '../types/database';
+import type { UserRole } from '../types/database';
 
 interface AuthScreenProps {
   onEnterDemo: (role: UserRole) => void
@@ -21,67 +21,51 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<UserRole>('renter');
   const [loading, setLoading] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false); // Toggle between Sign In / Sign Up
+  const [isSignUp, setIsSignUp] = useState(false);
 
   async function handleAuth() {
+    if (password.length < 6) {
+      Alert.alert('Weak password', 'Password must be at least 6 characters.');
+      return;
+    }
+
     setLoading(true);
     try {
       if (isSignUp) {
-        // --- SIGN UP Logic ---
+        // --- SIGN UP ---
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            data: {
-              role: role,
-            },
-          },
+          options: { data: { role } },
         });
 
         if (error) throw error;
 
         if (data.user) {
-          // Use upsert to ensure the profile exists and has the right role
           const { error: profileError } = await supabase
             .from('profiles')
-            .upsert({ 
-              id: data.user.id, 
-              role: role,
-              updated_at: new Date().toISOString()
-            } as any);
+            .upsert({
+              id: data.user.id,
+              role,
+              updated_at: new Date().toISOString(),
+            });
 
           if (profileError) console.error('Sign-up profile error:', profileError);
-          
+
           Alert.alert(
-            'Check your email!', 
+            'Check your email!',
             'A confirmation link has been sent to ' + email + '. You must click it before you can sign in.'
           );
         }
       } else {
-        // --- SIGN IN Logic ---
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        // --- SIGN IN --- (role is read from DB by App.tsx; no upsert here)
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) {
           if (error.message.includes('Email not confirmed')) {
             throw new Error('Please confirm your email first! Check your inbox for the link.');
           }
           throw error;
-        }
-
-        if (data.user) {
-          // Force upsert the profile role upon sign in
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert({ 
-              id: data.user.id, 
-              role: role,
-              updated_at: new Date().toISOString()
-            } as any);
-          
-          if (profileError) console.error('Sign-in profile error:', profileError);
         }
       }
     } catch (error) {
@@ -91,11 +75,6 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handleClearSession() {
-    await supabase.auth.signOut();
-    Alert.alert('Debug', 'Session cleared. Try logging in again.');
   }
 
   return (
@@ -125,31 +104,33 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
           secureTextEntry
         />
 
-        {/* Role Selection - Show for both Sign In and Sign Up */}
-        <View style={styles.roleContainer}>
-          <Text style={styles.roleLabel}>I am a:</Text>
-          <View style={styles.roleSelector}>
-            {(['renter', 'landlord', 'agent'] as UserRole[]).map((r) => (
-              <TouchableOpacity
-                key={r}
-                style={[
-                  styles.roleButton,
-                  role === r && styles.roleButtonSelected,
-                ]}
-                onPress={() => setRole(r)}
-              >
-                <Text
+        {/* Role selector only relevant during sign-up */}
+        {isSignUp && (
+          <View style={styles.roleContainer}>
+            <Text style={styles.roleLabel}>I am a:</Text>
+            <View style={styles.roleSelector}>
+              {(['renter', 'landlord', 'agent'] as UserRole[]).map((r) => (
+                <TouchableOpacity
+                  key={r}
                   style={[
-                    styles.roleButtonText,
-                    role === r && styles.roleButtonTextSelected,
+                    styles.roleButton,
+                    role === r && styles.roleButtonSelected,
                   ]}
+                  onPress={() => setRole(r)}
                 >
-                  {r.charAt(0).toUpperCase() + r.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    style={[
+                      styles.roleButtonText,
+                      role === r && styles.roleButtonTextSelected,
+                    ]}
+                  >
+                    {r.charAt(0).toUpperCase() + r.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         <TouchableOpacity
           style={styles.authButton}
@@ -171,7 +152,7 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
           disabled={loading}
         >
           <Text style={styles.demoButtonText}>
-            Enter as Demo {role.charAt(0).toUpperCase() + role.slice(1)}
+            Enter Demo
           </Text>
         </TouchableOpacity>
 
@@ -185,15 +166,6 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
               : "Don't have an account? Sign Up"}
           </Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.debugButton}
-          onPress={handleClearSession}
-        >
-          <Text style={styles.debugButtonText}>
-            Debug: Clear Session & Refresh
-          </Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -202,7 +174,7 @@ export default function AuthScreen({ onEnterDemo }: AuthScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB', // cool gray 50
+    backgroundColor: '#F9FAFB',
   },
   content: {
     flex: 1,
@@ -271,7 +243,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   authButton: {
-    backgroundColor: '#2563EB', // blue 600
+    backgroundColor: '#2563EB',
     borderRadius: 8,
     paddingVertical: 16,
     alignItems: 'center',
@@ -287,35 +259,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   toggleText: {
-    color: '#4F46E5', // indigo 600
+    color: '#4F46E5',
     fontSize: 14,
     fontWeight: '500',
   },
-  debugButton: {
-    marginTop: 40,
-    alignItems: 'center',
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    borderStyle: 'dashed',
-  },
-  debugButtonText: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    fontWeight: '400',
-  },
   demoButton: {
-    backgroundColor: '#ECFDF5', // emerald 50
+    backgroundColor: '#ECFDF5',
     borderRadius: 8,
     paddingVertical: 14,
     alignItems: 'center',
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#10B981', // emerald 500
+    borderColor: '#10B981',
   },
   demoButtonText: {
-    color: '#047857', // emerald 700
+    color: '#047857',
     fontWeight: '600',
     fontSize: 14,
   },
