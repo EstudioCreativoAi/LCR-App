@@ -6,6 +6,13 @@ import { supabase } from './lib/supabase'
 import { UserRole } from './types/database'
 import AuthScreen from './screens/AuthScreen'
 import PropertyFeed from './components/PropertyFeed'
+import CreateListing from './components/CreateListing'
+import LeadDashboard from './components/LeadDashboard'
+import RenterLeaseDashboard from './components/RenterLeaseDashboard'
+import CommissionTracker from './components/CommissionTracker'
+import NotificationCenter from './components/NotificationCenter'
+import i18n from './i18n'
+import { useTranslation } from 'react-i18next'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -103,6 +110,7 @@ export default function App() {
           key={session.user.id} 
           session={session} 
           role={role || 'renter'}
+          isDemo={isDemo}
           onSignOut={handleSignOut}
         />
       ) : (
@@ -112,7 +120,59 @@ export default function App() {
   )
 }
 
-function HomeScreen({ session, role, onSignOut }: { session: Session; role: UserRole; onSignOut: () => void }) {
+function HomeScreen({ session, role, isDemo, onSignOut }: { session: Session; role: UserRole; isDemo: boolean; onSignOut: () => void }) {
+  const { t } = useTranslation()
+  const [showCreateListing, setShowCreateListing] = useState(false)
+  const [activeTab, setActiveTab] = useState<'feed' | 'leads' | 'commissions' | 'renter_leases'>('feed')
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    fetchUnreadCount()
+    const channel = supabase
+      .channel('unread_notifs')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${session.user.id}`,
+        },
+        () => fetchUnreadCount()
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  const fetchUnreadCount = async () => {
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', session.user.id)
+      .eq('is_read', false)
+    
+    if (!error) setUnreadCount(count || 0)
+  }
+
+  const handleNotificationAction = (type: string, metadata: any) => {
+    setShowNotifications(false)
+    if (type === 'new_message' || type === 'lead_update') {
+      setActiveTab('leads')
+      // Additional logic could be added to auto-open specific lead chat if needed
+    } else if (type === 'lease_signed') {
+      setActiveTab('commissions')
+    }
+  }
+
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'en' ? 'es' : 'en'
+    i18n.changeLanguage(newLang)
+  }
+
   return (
     <SafeAreaView style={styles.homeContainer}>
       {/* Header */}
@@ -121,21 +181,119 @@ function HomeScreen({ session, role, onSignOut }: { session: Session; role: User
           <View>
             <Text style={styles.headerTitle}>LCR App</Text>
             <Text style={styles.headerSubtitle}>{session.user.email}</Text>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleBadgeText}>{role.toUpperCase()}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <View style={styles.roleBadge}>
+                <Text style={styles.roleBadgeText}>{role.toUpperCase()}</Text>
+              </View>
+              <TouchableOpacity style={styles.languageToggle} onPress={toggleLanguage}>
+                <Text style={styles.languageToggleText}>{i18n.language.toUpperCase()}</Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.signOutButton}
-            onPress={onSignOut}
+          
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity 
+              style={styles.notificationBell}
+              onPress={() => setShowNotifications(true)}
+            >
+              <Text style={{ fontSize: 24 }}>🔔</Text>
+              {unreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {(role === 'landlord' || role === 'agent') && (
+              <TouchableOpacity
+                style={styles.createListingButton}
+                onPress={() => setShowCreateListing(true)}
+              >
+                <Text style={styles.createListingButtonText}>+ {t('common.new')}</Text>
+              </TouchableOpacity>
+            )}
+            
+            <TouchableOpacity
+              style={styles.signOutButton}
+              onPress={onSignOut}
+            >
+              <Text style={styles.signOutButtonText}>{t('common.signOut')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Tab Navigation */}
+        <View style={styles.tabBar}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'feed' && styles.tabActive]}
+            onPress={() => setActiveTab('feed')}
           >
-            <Text style={styles.signOutButtonText}>Sign Out</Text>
+            <Text style={[styles.tabText, activeTab === 'feed' && styles.tabTextActive]}>{t('common.properties')}</Text>
           </TouchableOpacity>
+          
+          {(role === 'landlord' || role === 'agent') && (
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'leads' && styles.tabActive]}
+              onPress={() => setActiveTab('leads')}
+            >
+              <Text style={[styles.tabText, activeTab === 'leads' && styles.tabTextActive]}>{t('common.leads')}</Text>
+            </TouchableOpacity>
+          )}
+
+          {role === 'renter' && (
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'renter_leases' && styles.tabActive]}
+              onPress={() => setActiveTab('renter_leases')}
+            >
+              <Text style={[styles.tabText, activeTab === 'renter_leases' && styles.tabTextActive]}>My Leases</Text>
+            </TouchableOpacity>
+          )}
+          
+          {role === 'agent' && (
+            <TouchableOpacity 
+              style={[styles.tab, activeTab === 'commissions' && styles.tabActive]}
+              onPress={() => setActiveTab('commissions')}
+            >
+              <Text style={[styles.tabText, activeTab === 'commissions' && styles.tabTextActive]}>{t('common.earnings')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
-      {/* Property Feed - role can be used for view-based logic inside */}
-      <PropertyFeed role={role} />
+      {/* Main Content */}
+      <View style={{ flex: 1 }}>
+        {activeTab === 'feed' ? (
+          <PropertyFeed role={role} isDemo={isDemo} />
+        ) : activeTab === 'leads' ? (
+          <LeadDashboard isDemo={isDemo} session={session} />
+        ) : activeTab === 'renter_leases' ? (
+          <RenterLeaseDashboard isDemo={isDemo} session={session} />
+        ) : (
+          <CommissionTracker isDemo={isDemo} />
+        )}
+      </View>
+
+      {/* Modal-like Overlay for Create Listing */}
+      {showCreateListing && (
+        <CreateListing 
+          onClose={() => setShowCreateListing(false)}
+          onSuccess={() => {
+            setShowCreateListing(false)
+            setActiveTab('feed')
+          }}
+        />
+      )}
+
+      {/* Notification Center Overlay */}
+      {showNotifications && (
+        <NotificationCenter
+          userId={session.user.id}
+          onClose={() => setShowNotifications(false)}
+          onAction={handleNotificationAction}
+        />
+      )}
     </SafeAreaView>
   )
 }
@@ -207,5 +365,77 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FF3B30',
+  },
+  createListingButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 10,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  createListingButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    width: '100%',
+    maxWidth: 800,
+    paddingHorizontal: 16,
+    gap: 24,
+  },
+  tab: {
+    paddingVertical: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabActive: {
+    borderBottomColor: '#007AFF',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  tabTextActive: {
+    color: '#007AFF',
+  },
+  notificationBell: {
+    padding: 6,
+    position: 'relative',
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    backgroundColor: '#FF3B30',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    paddingHorizontal: 2,
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  languageToggle: {
+    backgroundColor: '#F2F2F7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  languageToggleText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#8E8E93',
   },
 })
