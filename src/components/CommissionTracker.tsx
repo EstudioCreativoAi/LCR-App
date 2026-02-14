@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from 'react-native'
 import { supabase } from '../lib/supabase'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { Commission } from '../types/database'
 
 const IS_WEB = Platform.OS === 'web'
@@ -137,7 +138,7 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
   if (loading && !refreshing) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     )
   }
@@ -190,7 +191,9 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
                 <Text style={styles.renterName}>Renter ID: {comm.leases.renter_id.slice(0, 8)}...</Text>
               </View>
               <View style={[styles.statusBadge, comm.status === 'paid' ? styles.statusPaid : styles.statusPending]}>
-                <Text style={styles.statusText}>{comm.status.toUpperCase()}</Text>
+                <Text style={[styles.statusText, comm.status === 'pending' && styles.statusTextPending]}>
+                  {comm.status.toUpperCase()}
+                </Text>
               </View>
             </View>
             <View style={styles.commFooter}>
@@ -215,7 +218,7 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: COLORS.muted,
     width: '100%',
     maxWidth: MAX_CONTENT_WIDTH,
     alignSelf: 'center',
@@ -226,15 +229,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scrollContent: {
-    padding: 20,
+    padding: SPACING.lg,
     paddingBottom: 40,
   },
   summaryCard: {
-    backgroundColor: '#007AFF',
+    backgroundColor: COLORS.primary,
     borderRadius: 24,
-    padding: 24,
+    padding: SPACING.lg,
     marginBottom: 32,
-    shadowColor: '#007AFF',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -243,75 +246,76 @@ const styles = StyleSheet.create({
   summaryLabel: {
     color: 'rgba(255, 255, 255, 0.8)',
     fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
+    fontFamily: FONTS.semiBold,
+    marginBottom: SPACING.sm,
   },
   summaryAmount: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 36,
-    fontWeight: '800',
-    marginBottom: 24,
+    fontFamily: FONTS.bold,
+    marginBottom: SPACING.lg,
     letterSpacing: -1,
   },
   summaryFooter: {
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.2)',
-    paddingTop: 16,
+    paddingTop: SPACING.md,
     gap: 32,
   },
   footerItem: {},
   footerLabel: {
     color: 'rgba(255, 255, 255, 0.6)',
     fontSize: 11,
-    fontWeight: '600',
+    fontFamily: FONTS.semiBold,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   footerValue: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: FONTS.bold,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 16,
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.md,
   },
   filterBar: {
     flexDirection: 'row',
-    marginBottom: 24,
+    marginBottom: SPACING.lg,
     marginHorizontal: -4,
   },
   filterChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
     marginHorizontal: 4,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.secondary,
   },
   filterChipActive: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   filterChipText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.muted,
   },
   filterChipTextActive: {
-    color: '#FFFFFF',
+    color: COLORS.white,
+    fontFamily: FONTS.semiBold,
   },
   commCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 16,
-    padding: 16,
+    padding: SPACING.md,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#F2F2F7',
+    borderColor: COLORS.background,
   },
   commHeader: {
     flexDirection: 'row',
@@ -325,13 +329,14 @@ const styles = StyleSheet.create({
   },
   address: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
     marginBottom: 2,
   },
   renterName: {
     fontSize: 12,
-    color: '#8E8E93',
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -339,32 +344,39 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusPaid: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: COLORS.cardBackground,
+    borderWidth: 1,
+    borderColor: COLORS.secondary,
   },
   statusPending: {
-    backgroundColor: '#FFF3E0',
+    backgroundColor: COLORS.accent,
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '800',
+    fontFamily: FONTS.bold,
     letterSpacing: 0.5,
+    color: COLORS.text,
+  },
+  statusTextPending: {
+    color: COLORS.white,
   },
   commFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
     borderTopWidth: 1,
-    borderTopColor: '#F2F2F7',
+    borderTopColor: COLORS.background,
     paddingTop: 12,
   },
   date: {
     fontSize: 12,
-    color: '#AEAEB2',
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
   },
   amount: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#007AFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
   },
   emptyContainer: {
     padding: 48,
@@ -379,13 +391,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
   },
   emptyText: {
     fontSize: 15,
-    color: '#8E8E93',
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
     textAlign: 'center',
     lineHeight: 22,
   },

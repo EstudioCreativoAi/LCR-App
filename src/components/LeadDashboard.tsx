@@ -11,8 +11,10 @@ import {
   RefreshControl,
 } from 'react-native'
 import { supabase } from '../lib/supabase'
+import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { Lead, LeadStatus, Property } from '../types/database'
 import ChatThread from './ChatThread'
+import { LeadListItem } from './LeadListItem'
 import ReviewSystem from './ReviewSystem'
 import { Session } from '@supabase/supabase-js'
 
@@ -80,7 +82,11 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
   const [refreshing, setRefreshing] = useState(false)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [activeChatLeadId, setActiveChatLeadId] = useState<string | null>(null)
+  const [expandedLeadId, setExpandedLeadId] = useState<string | null>(null)
   const [ratingTarget, setRatingTarget] = useState<{ propertyId?: string, renterId: string, leadId: string } | null>(null)
+
+  const formatLeadDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 
   const fetchLeads = useCallback(async () => {
     try {
@@ -192,91 +198,103 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
     }
   }
 
-  const renderLeadCard = (lead: LeadWithProperty) => (
-    <View key={lead.id} style={styles.leadCard}>
-      <View style={styles.leadHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.propertyAddress}>{lead.properties.address}</Text>
-          <Text style={styles.renterInfo}>Renter: {lead.profiles?.full_name || lead.renter_id.slice(0, 8)}</Text>
-        </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(lead.status) }]}>
-            <Text style={styles.statusBadgeText}>{lead.status}</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.chatButton} 
-            onPress={() => setActiveChatLeadId(lead.id)}
-          >
-            <Text style={styles.chatButtonText}>💬 Chat</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+  const renderLeadCard = (lead: LeadWithProperty) => {
+    const isExpanded = expandedLeadId === lead.id
+    const renterName = lead.profiles?.full_name || lead.renter_id.slice(0, 8)
+    const propertyTitle = `${lead.properties.address}${lead.properties.city ? `, ${lead.properties.city}` : ''}`
 
-      {lead.message && (
-        <Text style={styles.leadMessage} numberOfLines={2}>
-          "{lead.message}"
-        </Text>
-      )}
+    return (
+      <View key={lead.id} style={styles.leadCard}>
+        <LeadListItem
+          renterName={renterName}
+          propertyTitle={propertyTitle}
+          status={lead.status}
+          date={formatLeadDate(lead.created_at)}
+          onPress={() => setExpandedLeadId(isExpanded ? null : lead.id)}
+          embedded
+        />
 
-      <View style={styles.actionRow}>
-        <Text style={styles.updateLabel}>Update Lead Status:</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statusStepper}>
-          {STATUS_ORDER.map(status => (
-            <TouchableOpacity
-              key={status}
-              style={[
-                styles.statusOption,
-                lead.status === status && styles.statusOptionActive,
-                updatingId === lead.id && { opacity: 0.5 }
-              ]}
-              onPress={() => updateLeadStatus(lead.id, status)}
-              disabled={updatingId === lead.id}
-            >
-              <Text style={[
-                styles.statusOptionText,
-                lead.status === status && styles.statusOptionTextActive
-              ]}>
-                {status}
+        {isExpanded && (
+          <View style={styles.expandedContent}>
+            {lead.message && (
+              <Text style={styles.leadMessage} numberOfLines={3}>
+                "{lead.message}"
               </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+            )}
 
-      {lead.status === 'Lease Sent' && (
-        <View style={[styles.actionRow, { borderTopWidth: 0, paddingTop: 8 }]}>
-          <Text style={styles.updateLabel}>Lease Lifecycle:</Text>
-          <TouchableOpacity 
-            style={[styles.completeButton, updatingId === lead.id && { opacity: 0.5 }]}
-            onPress={() => {
-              setRatingTarget({ 
-                propertyId: lead.property_id, 
-                renterId: lead.renter_id,
-                leadId: lead.id
-              })
-            }}
-          >
-            <Text style={styles.completeButtonText}>✅ Complete Lease & Rate Renter</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  )
+            <View style={styles.actionRow}>
+              <Text style={styles.updateLabel}>Update Lead Status:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statusStepper}>
+                {STATUS_ORDER.map(status => (
+                  <TouchableOpacity
+                    key={status}
+                    style={[
+                      styles.statusOption,
+                      lead.status === status && styles.statusOptionActive,
+                      updatingId === lead.id && { opacity: 0.5 }
+                    ]}
+                    onPress={() => updateLeadStatus(lead.id, status)}
+                    disabled={updatingId === lead.id}
+                  >
+                    <Text style={[
+                      styles.statusOptionText,
+                      lead.status === status && styles.statusOptionTextActive
+                    ]}>
+                      {status}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.chatButton}
+                onPress={() => {
+                  setExpandedLeadId(null)
+                  setActiveChatLeadId(lead.id)
+                }}
+              >
+                <Text style={styles.chatButtonText}>💬 Chat</Text>
+              </TouchableOpacity>
+            </View>
+
+            {lead.status === 'Lease Sent' && (
+              <View style={[styles.actionRow, { borderTopWidth: 0, paddingTop: 8 }]}>
+                <TouchableOpacity
+                  style={[styles.completeButton, updatingId === lead.id && { opacity: 0.5 }]}
+                  onPress={() => {
+                    setRatingTarget({
+                      propertyId: lead.property_id,
+                      renterId: lead.renter_id,
+                      leadId: lead.id
+                    })
+                  }}
+                >
+                  <Text style={styles.completeButtonText}>✅ Complete Lease & Rate Renter</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    )
+  }
 
   const getStatusColor = (status: LeadStatus) => {
     switch (status) {
-      case 'Interested': return '#007AFF'
-      case 'Contacted': return '#5856D6'
-      case 'Viewing Scheduled': return '#FF9500'
-      case 'Lease Sent': return '#34C759'
-      default: return '#8E8E93'
+      case 'Interested': return COLORS.primary
+      case 'Contacted': return COLORS.secondary
+      case 'Viewing Scheduled': return COLORS.accent
+      case 'Lease Sent': return COLORS.accent
+      default: return COLORS.muted
     }
   }
 
   if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     )
   }
@@ -354,7 +372,7 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9F9F9',
+    backgroundColor: COLORS.muted,
     width: '100%',
     maxWidth: MAX_CONTENT_WIDTH,
     alignSelf: 'center',
@@ -363,33 +381,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#FFFFFF',
+    padding: SPACING.lg,
+    backgroundColor: COLORS.white,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
+    borderBottomColor: COLORS.background,
   },
   title: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#1C1C1E',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
   closeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 12,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 16,
   },
   closeButtonText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#007AFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
   },
   scrollContent: {
-    padding: 16,
+    padding: SPACING.md,
     paddingBottom: 40,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: SPACING.lg,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -399,77 +417,59 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#3A3A3C',
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
   },
   countBadge: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 12,
   },
   countText: {
     fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '800',
+    color: COLORS.white,
+    fontFamily: FONTS.bold,
   },
   leadCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: COLORS.white,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.background,
+    shadowColor: COLORS.text,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 2,
   },
-  leadHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  propertyAddress: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1C1C1E',
-  },
-  renterInfo: {
-    fontSize: 13,
-    color: '#8E8E93',
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
+  expandedContent: {
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.background,
   },
   leadMessage: {
     fontSize: 14,
-    color: '#48484A',
+    fontFamily: FONTS.regular,
+    color: COLORS.text,
     lineHeight: 20,
     fontStyle: 'italic',
-    marginBottom: 16,
-    backgroundColor: '#F9F9F9',
-    padding: 10,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.cardBackground,
+    padding: SPACING.sm,
     borderRadius: 8,
   },
   actionRow: {
     borderTopWidth: 1,
-    borderTopColor: '#F2F2F7',
+    borderTopColor: COLORS.background,
     paddingTop: 12,
   },
   updateLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#8E8E93',
-    marginBottom: 8,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.muted,
+    marginBottom: SPACING.sm,
   },
   statusStepper: {
     flexDirection: 'row',
@@ -478,22 +478,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: COLORS.cardBackground,
     marginRight: 8,
     borderWidth: 1,
     borderColor: 'transparent',
   },
   statusOptionActive: {
-    backgroundColor: '#EBF5FF',
-    borderColor: '#007AFF',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   statusOptionText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#8E8E93',
+    fontFamily: FONTS.semiBold,
+    color: COLORS.muted,
   },
   statusOptionTextActive: {
-    color: '#007AFF',
+    color: COLORS.white,
   },
   loadingContainer: {
     flex: 1,
@@ -513,41 +513,43 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#1C1C1E',
-    marginBottom: 8,
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
   },
   emptyText: {
     fontSize: 15,
-    color: '#8E8E93',
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
     textAlign: 'center',
     lineHeight: 22,
   },
   chatButton: {
-    marginTop: 8,
+    marginTop: SPACING.sm,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: '#F2F2F7',
-    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: COLORS.primary,
+    alignItems: 'center',
   },
   chatButtonText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#007AFF',
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
   },
   completeButton: {
-    backgroundColor: '#34C759',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 16,
     alignItems: 'center',
   },
   completeButtonText: {
-    color: '#FFFFFF',
+    color: COLORS.white,
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: FONTS.bold,
   },
   modalOverlay: {
     position: 'absolute',
