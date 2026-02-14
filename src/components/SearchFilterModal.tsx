@@ -11,6 +11,7 @@ import {
 import Slider from '@react-native-community/slider'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
+import { formatPrice } from '../utils/currency'
 
 export interface SearchFilters {
   priceMin: number
@@ -64,15 +65,6 @@ export default function SearchFilterModal({
       moveInDate,
     })
     onClose()
-  }
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price)
   }
 
   const formatDate = (date: Date | null) => {

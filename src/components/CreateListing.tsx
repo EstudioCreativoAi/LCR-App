@@ -14,8 +14,8 @@ import {
   Alert,
 } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
-import * as ImageManipulator from 'expo-image-manipulator'
 import { supabase } from '../lib/supabase'
+import { processImageForUpload, uploadImageToStorage } from '../utils/images'
 import { PropertyInsert } from '../types/database'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formStyles } from '../theme/forms'
@@ -97,55 +97,24 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
     }
   }
 
-  const uploadImages = (userId: string, propertyId: string): Promise<string[]> => {
-    return new Promise(async (resolve, reject) => {
-      const urls: string[] = []
-      
-      try {
-        for (const asset of selectedImages) {
-          // 1. Compress and Convert Image
-          const manipulatedImage = await ImageManipulator.manipulateAsync(
-            asset.uri,
-            [{ resize: { width: asset.width > 1920 ? 1920 : asset.width } }],
-            { compress: 0.8, format: ImageManipulator.SaveFormat.WEBP, base64: true }
-          )
+  const uploadImages = async (userId: string, propertyId: string): Promise<string[]> => {
+    const urls: string[] = []
 
-          // 2. Check Size (5MB = 5 * 1024 * 1024 bytes)
-          let body: Blob
-          const response = await fetch(manipulatedImage.uri)
-          body = await response.blob()
+    for (const asset of selectedImages) {
+      const processed = await processImageForUpload(asset.uri)
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`
+      const path = `${userId}/${propertyId}/${filename}`
 
-          if (body.size > 5 * 1024 * 1024) {
-            throw new Error(`Image ${asset.fileName || 'selected'} exceeds 5MB after compression. Please choose a different photo.`)
-          }
+      const result = await uploadImageToStorage(processed, 'property-photos', path)
 
-          const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}`
-          const path = `${userId}/${propertyId}/${filename}.webp`
-
-          const { data, error } = await supabase.storage
-            .from('property-photos')
-            .upload(path, body, {
-              contentType: 'image/webp',
-              cacheControl: '3600',
-              upsert: false
-            })
-
-          if (error) {
-            console.error('Upload error:', error)
-            throw error
-          }
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('property-photos')
-            .getPublicUrl(path)
-          
-          urls.push(publicUrl)
-        }
-        resolve(urls)
-      } catch (err) {
-        reject(err)
+      if (!result.success) {
+        throw new Error(result.error || 'Upload failed')
       }
-    })
+
+      urls.push(result.publicUrl!)
+    }
+
+    return urls
   }
 
   const generateUUID = () => {

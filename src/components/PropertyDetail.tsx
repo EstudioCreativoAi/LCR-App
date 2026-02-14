@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase'
 import { Property, Rating } from '../types/database'
 import { useTranslation } from 'react-i18next'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
+import { formatPrice } from '../utils/currency'
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window')
 const IS_WEB = Platform.OS === 'web'
@@ -83,14 +84,6 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
       )}
     </View>
   )
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
-      minimumFractionDigits: 0,
-    }).format(price)
-  }
 
   return (
     <View style={styles.overlay}>

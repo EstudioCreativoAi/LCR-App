@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase'
 import { Session } from '@supabase/supabase-js'
 import ReviewSystem from './ReviewSystem'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
+import { formatPrice } from '../utils/currency'
 
 interface RenterLeaseDashboardProps {
   session: Session
@@ -144,7 +145,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.label}>Monthly Rent</Text>
               <Text style={styles.value}>
-                {new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', minimumFractionDigits: 0 }).format(lease.monthly_rent || 0)}
+                {formatPrice(lease.monthly_rent || 0)}
               </Text>
             </View>
           </View>

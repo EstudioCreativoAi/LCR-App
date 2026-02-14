@@ -17,6 +17,7 @@ import ChatThread from './ChatThread'
 import { LeadListItem } from './LeadListItem'
 import ReviewSystem from './ReviewSystem'
 import { Session } from '@supabase/supabase-js'
+import { isTablet } from '../utils/responsive'
 
 const IS_WEB = Platform.OS === 'web'
 const MAX_CONTENT_WIDTH = 800
@@ -291,6 +292,8 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
     }
   }
 
+  const activeLeads = leads.filter(l => l.status !== 'Lease Sent')
+
   if (loading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
@@ -314,6 +317,88 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Active Leads</Text>
+            <View style={[styles.countBadge, { backgroundColor: COLORS.primary }]}>
+              <Text style={styles.countText}>{activeLeads.length}</Text>
+            </View>
+          </View>
+
+          {activeLeads.length === 0 ? (
+            <Text style={styles.emptyActiveLeadsText}>No active leads right now.</Text>
+          ) : (
+            <View style={[styles.activeLeadsGrid, isTablet && styles.activeLeadsGridTablet]}>
+              {activeLeads.map(lead => (
+                <View
+                  key={lead.id}
+                  style={[styles.activeLeadCard, isTablet && styles.activeLeadCardTablet]}
+                >
+                  <LeadListItem
+                    renterName={lead.profiles?.full_name || lead.renter_id.slice(0, 8)}
+                    propertyTitle={`${lead.properties.address}${lead.properties.city ? `, ${lead.properties.city}` : ''}`}
+                    status={lead.status}
+                    date={formatLeadDate(lead.created_at)}
+                    onPress={() => setExpandedLeadId(expandedLeadId === lead.id ? null : lead.id)}
+                    embedded
+                  />
+
+                  {expandedLeadId === lead.id && (
+                    <View style={styles.expandedContent}>
+                      {lead.message && (
+                        <Text style={styles.leadMessage} numberOfLines={3}>
+                          "{lead.message}"
+                        </Text>
+                      )}
+
+                      <View style={styles.actionRow}>
+                        <Text style={styles.updateLabel}>Update Lead Status:</Text>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.statusStepper}
+                        >
+                          {STATUS_ORDER.map(status => (
+                            <TouchableOpacity
+                              key={status}
+                              style={[
+                                styles.statusOption,
+                                lead.status === status && styles.statusOptionActive,
+                                updatingId === lead.id && { opacity: 0.5 }
+                              ]}
+                              onPress={() => updateLeadStatus(lead.id, status)}
+                              disabled={updatingId === lead.id}
+                            >
+                              <Text style={[
+                                styles.statusOptionText,
+                                lead.status === status && styles.statusOptionTextActive
+                              ]}>
+                                {status}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+
+                      <View style={styles.actionRow}>
+                        <TouchableOpacity
+                          style={styles.chatButton}
+                          onPress={() => {
+                            setExpandedLeadId(null)
+                            setActiveChatLeadId(lead.id)
+                          }}
+                        >
+                          <Text style={styles.chatButtonText}>💬 Chat</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {STATUS_ORDER.map(status => {
           const statusLeads = leads.filter(l => l.status === status)
           if (statusLeads.length === 0) return null
@@ -405,6 +490,35 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: SPACING.md,
     paddingBottom: 40,
+  },
+  activeLeadsGrid: {
+    width: '100%',
+  },
+  activeLeadsGridTablet: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  activeLeadCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.background,
+    shadowColor: COLORS.text,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  activeLeadCardTablet: {
+    width: '48%',
+  },
+  emptyActiveLeadsText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
   },
   section: {
     marginBottom: SPACING.lg,

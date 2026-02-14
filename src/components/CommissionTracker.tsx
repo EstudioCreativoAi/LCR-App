@@ -8,11 +8,11 @@ import {
   ActivityIndicator,
   Platform,
   RefreshControl,
-  Dimensions,
 } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { Commission } from '../types/database'
+import { formatPrice } from '../utils/currency'
 
 const IS_WEB = Platform.OS === 'web'
 const MAX_CONTENT_WIDTH = 800
@@ -75,6 +75,7 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(0) // 0 = All Time
+  const [chartHeight, setChartHeight] = useState(0)
 
   const fetchCommissions = useCallback(async () => {
     try {
@@ -124,16 +125,36 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
     return date.getMonth() + 1 === selectedMonth
   })
 
+  const chartSeries = (() => {
+    const now = new Date()
+    const monthsBack = 6
+    const series = Array.from({ length: monthsBack }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1 - i), 1)
+      return { year: d.getFullYear(), monthIndex: d.getMonth() }
+    })
+
+    const data = series.map(({ year, monthIndex }) => {
+      const total = commissions
+        .filter(c => c.status === 'paid')
+        .filter(c => {
+          const d = new Date(c.created_at)
+          return d.getFullYear() === year && d.getMonth() === monthIndex
+        })
+        .reduce((sum, c) => sum + Number(c.amount_mxn), 0)
+
+      return {
+        label: new Date(year, monthIndex, 1).toLocaleString(undefined, { month: 'short' }),
+        value: total,
+      }
+    })
+
+    const maxValue = Math.max(...data.map(d => d.value), 1)
+    return { data, maxValue }
+  })()
+
   const totalEarned = filteredCommissions
     .filter(c => c.status === 'paid')
     .reduce((sum, c) => sum + Number(c.amount_mxn), 0)
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
-    }).format(amount)
-  }
 
   if (loading && !refreshing) {
     return (
@@ -152,7 +173,7 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
         {/* Summary Card */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Total Earned Commissions</Text>
-          <Text style={styles.summaryAmount}>{formatCurrency(totalEarned)}</Text>
+          <Text style={styles.summaryAmount}>{formatPrice(totalEarned)}</Text>
           <View style={styles.summaryFooter}>
             <View style={styles.footerItem}>
               <Text style={styles.footerLabel}>Filtered by</Text>
@@ -162,6 +183,33 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
               <Text style={styles.footerLabel}>Total Rentals</Text>
               <Text style={styles.footerValue}>{filteredCommissions.length}</Text>
             </View>
+          </View>
+        </View>
+
+        {/* Commission Tracker Chart */}
+        <Text style={styles.sectionTitle}>Commission Tracker</Text>
+        <View style={styles.chartCard}>
+          <View
+            style={styles.chartArea}
+            onLayout={(e) => setChartHeight(e.nativeEvent.layout.height)}
+          >
+            {chartSeries.data.map((d) => {
+              const height = chartHeight > 0 ? Math.max(4, (d.value / chartSeries.maxValue) * chartHeight) : 4
+              const isZero = d.value <= 0
+
+              return (
+                <View key={d.label} style={styles.chartBarColumn}>
+                  <View
+                    style={[
+                      styles.chartBar,
+                      { height },
+                      isZero && styles.chartBarZero,
+                    ]}
+                  />
+                  <Text style={styles.chartLabel}>{d.label}</Text>
+                </View>
+              )
+            })}
           </View>
         </View>
 
@@ -198,7 +246,7 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
             </View>
             <View style={styles.commFooter}>
               <Text style={styles.date}>{new Date(comm.created_at).toLocaleDateString()}</Text>
-              <Text style={styles.amount}>{formatCurrency(Number(comm.amount_mxn))}</Text>
+              <Text style={styles.amount}>{formatPrice(Number(comm.amount_mxn))}</Text>
             </View>
           </View>
         ))}
@@ -281,6 +329,41 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     color: COLORS.text,
     marginBottom: SPACING.md,
+  },
+  chartCard: {
+    width: '100%',
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.background,
+  },
+  chartArea: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+  },
+  chartBarColumn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  chartBar: {
+    width: '100%',
+    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+  },
+  chartBarZero: {
+    opacity: 0.25,
+  },
+  chartLabel: {
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.muted,
   },
   filterBar: {
     flexDirection: 'row',

@@ -21,6 +21,7 @@ import SearchFilterModal, { SearchFilters } from './SearchFilterModal'
 import PropertyDetail from './PropertyDetail'
 import ReviewSystem from './ReviewSystem'
 import { Session } from '@supabase/supabase-js'
+import { formatPrice } from '../utils/currency'
 
 interface Property extends DBProperty {
   avg_rating?: number
@@ -93,15 +94,6 @@ const PropertyCard = ({
         `https://picsum.photos/seed/${item.id}-2/800/600`,
         `https://picsum.photos/seed/${item.id}-3/800/600`,
       ]
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price)
-  }
 
   return (
     <TouchableOpacity style={styles.card} onPress={() => onOpenDetail(item)}>

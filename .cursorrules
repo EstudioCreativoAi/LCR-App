@@ -1,0 +1,6 @@
+## Global Prompt Strategy (Los Cabos Rental app)
+
+- **Flex over Fixed**: Always use `flex: 1` or percentages (e.g. `width: '90%'`) instead of hardcoded widths like `width: 350`.
+- **Safe Areas**: Always wrap screen content in `SafeAreaView` from `react-native-safe-area-context` to handle notches.
+- **Touch Targets**: Buttons must have a minimum height of `44`px for thumb-friendliness.
+- **Aspect Ratio**: For property photos, use `aspectRatio: 16 / 9` so they scale correctly on all widths.
