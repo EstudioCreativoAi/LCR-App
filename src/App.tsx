@@ -9,7 +9,7 @@ import {
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins'
 import { Session } from '@supabase/supabase-js'
-import { supabase } from './lib/supabase'
+import { supabase, hasSupabaseConfig } from './lib/supabase'
 import { UserRole } from './types/database'
 import AuthScreen from './screens/AuthScreen'
 import PropertyFeed from './components/PropertyFeed'
@@ -37,6 +37,11 @@ export default function App() {
 
   useEffect(() => {
     if (isDemo) {
+      setLoading(false)
+      return
+    }
+
+    if (!hasSupabaseConfig) {
       setLoading(false)
       return
     }
@@ -124,6 +129,24 @@ export default function App() {
          <ActivityIndicator size="large" color={COLORS.primary} />
        </View>
      )
+  }
+
+  if (!hasSupabaseConfig) {
+    return (
+      <View style={[styles.container, styles.configPrompt]}>
+        <Text style={styles.configTitle}>Configuration Required</Text>
+        <Text style={styles.configText}>
+          Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in Vercel
+          Project Settings → Environment Variables.
+        </Text>
+        <TouchableOpacity
+          style={styles.demoButton}
+          onPress={() => handleEnterDemo('renter')}
+        >
+          <Text style={styles.demoButtonText}>Try Demo Mode</Text>
+        </TouchableOpacity>
+      </View>
+    )
   }
 
   return (
@@ -330,6 +353,36 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  configPrompt: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  configTitle: {
+    fontSize: 20,
+    fontFamily: FONTS.bold,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  configText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
+    textAlign: 'center',
+    marginBottom: SPACING.xl,
+  },
+  demoButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: 16,
+  },
+  demoButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontFamily: FONTS.bold,
   },
   homeContainer: {
     flex: 1,
