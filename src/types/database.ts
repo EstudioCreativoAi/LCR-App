@@ -97,6 +97,11 @@ export interface Profile {
   id: string
   role: UserRole
   full_name: string | null
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  phone_number: string | null
+  bio: string | null
   avatar_url: string | null
   created_at: string
   updated_at: string
@@ -106,6 +111,11 @@ export interface ProfileInsert {
   id: string
   role?: UserRole
   full_name?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  email?: string | null
+  phone_number?: string | null
+  bio?: string | null
   avatar_url?: string | null
   created_at?: string
   updated_at?: string
@@ -115,6 +125,11 @@ export interface ProfileUpdate {
   id?: string
   role?: UserRole
   full_name?: string | null
+  first_name?: string | null
+  last_name?: string | null
+  email?: string | null
+  phone_number?: string | null
+  bio?: string | null
   avatar_url?: string | null
   created_at?: string
   updated_at?: string

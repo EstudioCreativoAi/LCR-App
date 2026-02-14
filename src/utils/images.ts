@@ -121,6 +121,30 @@ export async function uploadImageToStorage(
 }
 
 /**
+ * Picks a square avatar image from the device library (1:1 aspect)
+ */
+export async function pickAvatarImage(): Promise<ImagePicker.ImagePickerAsset | null> {
+  const permission = await ImagePicker.requestMediaLibraryPermissionsAsync()
+
+  if (!permission.granted) {
+    throw new Error('Permission to access media library was denied')
+  }
+
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 1,
+  })
+
+  if (result.canceled || !result.assets[0]) {
+    return null
+  }
+
+  return result.assets[0]
+}
+
+/**
  * Complete flow: pick, process, and upload an image
  */
 export async function pickAndUploadImage(

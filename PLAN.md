@@ -1,195 +1,238 @@
-# PLAN: Migrate to expo-router file-based routing
+# PLAN: Edit Profile with Flip-Card UX
 
 **Status:** Awaiting approval
-**Scope:** Replace manual `useState`-based navigation in `App.tsx` with `expo-router` file-based routing
+**Scope:** Wire up Edit Profile on the Cabo ID Card — DB migration, avatar uploads, flip-card animation, stamp effect
 
 ---
 
-## 1. Install dependencies
+## 1. Install dependency
 
 ```bash
-npm install expo-router expo-linking expo-constants expo-status-bar
+npm install react-native-reanimated
 ```
 
-`react-native-safe-area-context`, `react-native-screens`, and `react-native-gesture-handler` are already installed.
+`expo-image-picker` and `expo-image-manipulator` are already installed. `babel.config.js` already has `babel-preset-expo` which includes the Reanimated plugin for SDK 54.
 
 ---
 
-## 2. Update config files
+## 2. Supabase migration: `20260214100000_profile_edit_fields.sql`
 
-### `app.json`
-- Add `"scheme": "lcr-app"` for deep linking
-- Set `"web.bundler": "metro"`
-- Set `"web.output": "single"` (SPA mode for Vercel)
+### 2a. Add columns to `profiles`
 
-### `package.json`
-- Change `"main"` from `"index.js"` to `"expo-router/entry"`
-- Update `"build"` script to `"expo export --platform web"`
-
-### `tsconfig.json`
-- Add `"compilerOptions.baseUrl": "."` (required by expo-router path aliases)
-
-### `vercel.json`
-- No changes needed (SPA rewrite already handles client-side routing)
-
-### `babel.config.js`
-- Create file with `babel-preset-expo` (expo-router requires it)
-
----
-
-## 3. New directory structure
-
-```
-app/
-├── _layout.tsx              # Root layout: loads fonts, wraps SessionProvider, Slot
-├── (auth)/
-│   ├── _layout.tsx          # Stack navigator for auth group
-│   └── sign-in.tsx          # Refactored AuthScreen (URL: /sign-in)
-├── (tabs)/
-│   ├── _layout.tsx          # Bottom tab navigator, role-conditional tabs
-│   ├── index.tsx            # Home/Feed tab (URL: /)
-│   ├── search.tsx           # Search tab placeholder (URL: /search)
-│   ├── saved.tsx            # Renter: Saved/Favorites (URL: /saved)
-│   ├── my-listings.tsx      # Landlord/Agent: My Listings (URL: /my-listings)
-│   ├── leads.tsx            # Landlord/Agent: Lead Dashboard (URL: /leads)
-│   ├── commissions.tsx      # Agent only: Commission Tracker (URL: /commissions)
-│   ├── leases.tsx           # Renter: My Leases (URL: /leases)
-│   └── profile.tsx          # Profile placeholder (URL: /profile)
-├── listing/
-│   └── [id].tsx             # Property detail (URL: /listing/123)
-├── create-listing.tsx       # Modal: Create Listing (presentation: 'modal')
-└── notifications.tsx        # Modal: Notification Center (presentation: 'modal')
-
-src/
-├── components/              # Existing components stay here (no moves needed)
-├── hooks/
-├── services/
-├── providers/
-│   └── SessionProvider.tsx   # NEW: auth + demo mode context
-├── types/
-├── theme/
-├── i18n/
-├── lib/
-└── utils/
+```sql
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS first_name TEXT,
+  ADD COLUMN IF NOT EXISTS last_name TEXT,
+  ADD COLUMN IF NOT EXISTS email TEXT,
+  ADD COLUMN IF NOT EXISTS phone_number TEXT,
+  ADD COLUMN IF NOT EXISTS bio TEXT;
 ```
 
-**Key:** Components stay in `src/components/`. The `app/` directory only has thin route files that import from `src/`.
+### 2b. Backfill `first_name` / `last_name` from existing `full_name`
 
----
-
-## 4. SessionProvider (new file: `src/providers/SessionProvider.tsx`)
-
-Replaces all auth/demo logic currently in `App.tsx`:
-
-```
-SessionProvider
-├── session: Session | null
-├── role: UserRole | null
-├── isDemo: boolean
-├── isLoading: boolean
-├── enterDemo(role) → sets mock session + role
-├── signOut() → clears session or calls supabase.auth.signOut()
+```sql
+UPDATE public.profiles
+SET
+  first_name = split_part(full_name, ' ', 1),
+  last_name  = NULLIF(substring(full_name from position(' ' in full_name) + 1), '')
+WHERE full_name IS NOT NULL AND first_name IS NULL;
 ```
 
-- Wraps the entire app in `app/_layout.tsx`
-- All route files access session via `useSession()` hook
-- Auth redirect logic lives in `app/_layout.tsx`: if no session, redirect to `/(auth)/sign-in`
+### 2c. Create computed column or keep `full_name` as-is?
+
+**Decision: Keep `full_name` column.** 20+ references across the codebase use `full_name`. We'll add a trigger that auto-updates `full_name` when `first_name` or `last_name` change, so existing code doesn't break:
+
+```sql
+CREATE OR REPLACE FUNCTION public.sync_full_name()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.full_name := TRIM(COALESCE(NEW.first_name, '') || ' ' || COALESCE(NEW.last_name, ''));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER sync_full_name_trigger
+BEFORE INSERT OR UPDATE ON public.profiles
+FOR EACH ROW EXECUTE FUNCTION public.sync_full_name();
+```
+
+### 2d. Backfill `email` from `auth.users`
+
+```sql
+UPDATE public.profiles p
+SET email = u.email
+FROM auth.users u
+WHERE p.id = u.id AND p.email IS NULL;
+```
+
+### 2e. Update `handle_new_user()` to populate email on signup
+
+```sql
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, role, email)
+  VALUES (NEW.id, 'renter', NEW.email);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
 
 ---
 
-## 5. Root layout (`app/_layout.tsx`)
+## 3. Supabase migration: `20260214100100_create_avatars_bucket.sql`
 
-Responsibilities:
-1. Load Poppins fonts (moved from old `App.tsx`)
-2. Wrap children in `<SessionProvider>`
-3. Show loading spinner until fonts + session are ready
-4. Define the root `<Stack>` with:
-   - `(auth)` group — visible when unauthenticated
-   - `(tabs)` group — visible when authenticated
-   - `create-listing` — `presentation: 'modal'`
-   - `notifications` — `presentation: 'modal'`
-   - `listing/[id]` — standard push screen
+```sql
+-- Create avatars bucket (public read)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO NOTHING;
 
-Auth gate: Use `useEffect` + `router.replace()` to redirect based on session state (not conditional rendering, since expo-router manages the navigation tree).
+-- Public read
+CREATE POLICY "Avatar Public Read"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'avatars');
 
----
-
-## 6. Tabs layout (`app/(tabs)/_layout.tsx`)
-
-Role-conditional bottom tabs:
-
-| Tab | Renter | Landlord | Agent |
-|-----|--------|----------|-------|
-| Home (Feed) | Yes | Yes | Yes |
-| Search | Yes | Yes | Yes |
-| Saved | Yes | No | No |
-| My Listings | No | Yes | Yes |
-| Leads | No | Yes | Yes |
-| Leases | Yes | No | No |
-| Commissions | No | No | Yes |
-| Profile | Yes | Yes | Yes |
-
-Implementation: Use `<Tabs>` from `expo-router` with `href: null` to hide tabs based on `role` from `useSession()`.
+-- Authenticated users manage their own folder: {user_id}/*
+CREATE POLICY "Users Manage Own Avatar"
+ON storage.objects FOR ALL
+TO authenticated
+USING (
+  bucket_id = 'avatars' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+)
+WITH CHECK (
+  bucket_id = 'avatars' AND
+  (storage.foldername(name))[1] = auth.uid()::text
+);
+```
 
 ---
 
-## 7. Route file pattern
+## 4. Update TypeScript types (`src/types/database.ts`)
 
-Each route file is thin — it imports the existing component and passes props:
+Add new fields to `Profile`, `ProfileInsert`, `ProfileUpdate`:
 
-```tsx
-// app/(tabs)/leads.tsx
-import LeadDashboard from '../../src/components/LeadDashboard'
-import { useSession } from '../../src/providers/SessionProvider'
-
-export default function LeadsScreen() {
-  const { session, isDemo } = useSession()
-  if (!session) return null
-  return <LeadDashboard isDemo={isDemo} session={session} />
+```ts
+export interface Profile {
+  id: string
+  role: UserRole
+  full_name: string | null    // kept — auto-synced by trigger
+  first_name: string | null   // NEW
+  last_name: string | null    // NEW
+  email: string | null        // NEW (denormalized)
+  phone_number: string | null // NEW
+  bio: string | null          // NEW
+  avatar_url: string | null
+  created_at: string
+  updated_at: string
 }
 ```
 
 ---
 
-## 8. Files modified
+## 5. Create profile service (`src/services/profileService.ts`)
+
+New service with:
+
+```
+fetchProfile(userId)       → SELECT * FROM profiles WHERE id = userId
+updateProfile(userId, data) → UPDATE profiles SET ... WHERE id = userId
+uploadAvatar(userId, imageUri) → pick 1:1, compress, upload to avatars/{userId}/avatar.jpg, return publicUrl
+```
+
+`uploadAvatar` reuses `processImageForUpload` and `uploadImageToStorage` from `src/utils/images.ts` but with a 1:1 aspect ratio for the picker.
+
+---
+
+## 6. Flip-Card UX on `profile.tsx`
+
+### Architecture
+
+The ID card becomes a **FlipCard** component with two faces:
+
+```
+<FlipCard flipped={isEditing}>
+  <CardFront>         ← Current ID card UI (read-only)
+    [Edit button on top-right]
+  </CardFront>
+  <CardBack>          ← Edit form
+    [Avatar tap-to-change]
+    [First Name input]
+    [Last Name input]
+    [Phone input (placeholder: "+52...")]
+    [Bio textarea]
+    [Cancel] [Save]
+  </CardBack>
+</FlipCard>
+```
+
+### Animation spec (react-native-reanimated)
+
+- **Flip:** `withTiming` rotateY from 0° to 180° (500ms, Easing.inOut)
+- Front face: `backfaceVisibility: 'hidden'`, rotateY = `interpolate(progress, [0,1], [0, 180])`
+- Back face: `backfaceVisibility: 'hidden'`, rotateY = `interpolate(progress, [0,1], [180, 360])`
+- Both faces share the same `LinearGradient` background so the card feels like one physical object
+
+### "Stamp" animation on save
+
+After successful save + flip back to front:
+1. A circular "VERIFIED" stamp overlay scales from 0 → 1.2 → 1.0 with a spring animation
+2. Opacity fades from 1 → 0 over 1.5s
+3. Only plays if the profile now meets verification criteria (first_name + last_name + avatar_url all set)
+4. If not verified yet, skip the stamp — just flip back normally
+
+### Avatar editing
+
+- Tapping the avatar on the back face calls `pickImage()` with `aspect: [1, 1]`
+- Shows a loading spinner overlay on the avatar circle during upload
+- On success, updates the avatar preview immediately (optimistic UI)
+
+---
+
+## 7. Files to create/modify
 
 | File | Action |
 |------|--------|
-| `package.json` | Change `main`, add expo-router dep |
-| `app.json` | Add scheme, web config |
-| `tsconfig.json` | Add baseUrl |
-| `index.js` | Delete (replaced by expo-router/entry) |
-| `src/App.tsx` | Delete (replaced by `app/_layout.tsx`) |
-| `src/screens/AuthScreen.tsx` | Refactor: remove `onEnterDemo` prop, use `useSession()` context instead |
-| `babel.config.js` | Create |
+| `supabase/migrations/20260214100000_profile_edit_fields.sql` | Create |
+| `supabase/migrations/20260214100100_create_avatars_bucket.sql` | Create |
+| `src/types/database.ts` | Add `first_name`, `last_name`, `email`, `phone_number`, `bio` to Profile types |
+| `src/services/profileService.ts` | Create (fetch, update, uploadAvatar) |
+| `src/utils/images.ts` | Add `pickAvatarImage()` variant with 1:1 aspect |
+| `app/(tabs)/profile.tsx` | Major rewrite — FlipCard with edit form + stamp animation |
 
 ---
 
-## 9. Migration steps (execution order)
+## 8. Execution order
 
-1. Install `expo-router` + peers
-2. Create `babel.config.js`
-3. Update `app.json`, `package.json`, `tsconfig.json`
-4. Create `src/providers/SessionProvider.tsx`
-5. Create `app/_layout.tsx` (root)
-6. Create `app/(auth)/_layout.tsx` + `app/(auth)/sign-in.tsx`
-7. Create `app/(tabs)/_layout.tsx` + all tab route files
-8. Create `app/listing/[id].tsx`, `app/create-listing.tsx`, `app/notifications.tsx`
-9. Create `app/(tabs)/profile.tsx` placeholder
-10. Refactor `AuthScreen.tsx` to use `useSession()` instead of props
-11. Delete `index.js` and `src/App.tsx`
-12. Test: `npx expo start --web` to verify routing works
-13. Test: verify demo mode still works end-to-end
+1. `npm install react-native-reanimated`
+2. Create migration `20260214100000_profile_edit_fields.sql`
+3. Create migration `20260214100100_create_avatars_bucket.sql`
+4. Update `src/types/database.ts` with new profile fields
+5. Create `src/services/profileService.ts`
+6. Add `pickAvatarImage()` to `src/utils/images.ts`
+7. Rewrite `app/(tabs)/profile.tsx` with FlipCard + edit form + stamp animation
+8. Build verify: `npx expo export --platform web`
 
 ---
 
-## 10. What this plan does NOT change
+## 9. What this plan does NOT change
 
-- No component refactoring (PropertyFeed, LeadDashboard, etc. stay as-is)
-- No styling changes
-- No new features beyond navigation scaffolding
-- No database/migration changes
-- `src/hooks/`, `src/services/`, `src/lib/`, `src/utils/`, `src/theme/`, `src/i18n/` are untouched
+- No changes to existing components (LeadDashboard, ChatThread, etc.) — they continue using `full_name` which is auto-synced by the trigger
+- No changes to authService or SessionProvider
+- No OTP/phone verification (V2)
+- No changes to navigation structure
+
+---
+
+## 10. Verification criteria ("Verified" badge)
+
+The holographic "VERIFIED" stamp appears when ALL of these are true:
+- `first_name` IS NOT NULL and non-empty
+- `last_name` IS NOT NULL and non-empty
+- `avatar_url` IS NOT NULL and non-empty
+
+`phone_number` and `bio` are encouraged but do NOT block verification.
 
 ---
 
@@ -197,8 +240,8 @@ export default function LeadsScreen() {
 
 | Risk | Mitigation |
 |------|-----------|
-| expo-router v4 requires Expo SDK 54 | Already on SDK 54 — compatible |
-| `react-native-web` compatibility | expo-router supports web output; using `"output": "single"` SPA mode |
-| Existing `@react-navigation` packages conflict | expo-router uses react-navigation internally; will keep existing deps (they're peers) |
-| Demo mode breaks after refactor | SessionProvider preserves exact same mock session logic |
-| Vercel deploys break | SPA rewrite in vercel.json already handles `/(.*) → /index.html` |
+| `full_name` references break | Trigger auto-syncs `full_name` from `first_name + last_name` — zero code changes needed in existing components |
+| Reanimated web compatibility | react-native-reanimated v3 supports web; Expo SDK 54 includes the babel plugin |
+| Avatar upload fails silently | Show error Alert + keep old avatar; optimistic UI reverts on failure |
+| Migration fails on existing data | Backfill queries handle NULL safely with COALESCE |
+| `backfaceVisibility` on web | Supported in react-native-web via CSS `backface-visibility: hidden` |
