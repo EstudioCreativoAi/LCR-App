@@ -9,6 +9,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native'
 import Animated, {
   useSharedValue,
@@ -256,9 +257,18 @@ export default function ProfileScreen() {
   const isRenter = role === 'renter'
   const isAgent = role === 'agent'
 
+  const isWeb = Platform.OS === 'web'
+
   // ── Animation styles ──
+  // Web: crossfade (3D transforms are unreliable on react-native-web)
+  // Native: 3D card flip
 
   const frontAnimatedStyle = useAnimatedStyle(() => {
+    if (isWeb) {
+      return {
+        opacity: interpolate(flipProgress.value, [0, 0.5, 1], [1, 0, 0]),
+      }
+    }
     const rotateY = interpolate(flipProgress.value, [0, 1], [0, 180])
     return {
       transform: [{ perspective: 1000 }, { rotateY: `${rotateY}deg` }],
@@ -267,6 +277,11 @@ export default function ProfileScreen() {
   })
 
   const backAnimatedStyle = useAnimatedStyle(() => {
+    if (isWeb) {
+      return {
+        opacity: interpolate(flipProgress.value, [0, 0.5, 1], [0, 0, 1]),
+      }
+    }
     const rotateY = interpolate(flipProgress.value, [0, 1], [180, 360])
     return {
       transform: [{ perspective: 1000 }, { rotateY: `${rotateY}deg` }],
@@ -410,8 +425,15 @@ export default function ProfileScreen() {
     >
       {/* === FLIP CARD === */}
       <View style={styles.cardOuter}>
-        {/* FRONT FACE */}
-        <Animated.View style={[styles.cardFace, frontAnimatedStyle]}>
+        {/* FRONT FACE — flows normally when !isEditing, absolute when isEditing */}
+        <Animated.View
+          style={[
+            styles.cardFace,
+            isEditing && styles.cardFaceHidden,
+            frontAnimatedStyle,
+          ]}
+          pointerEvents={isEditing ? 'none' : 'auto'}
+        >
           <LinearGradient
             colors={['#D55E46', '#D5B58F', '#E5DCCD']}
             start={{ x: 0, y: 0 }}
@@ -470,8 +492,15 @@ export default function ProfileScreen() {
           <VerifiedStamp visible={showStamp} />
         </Animated.View>
 
-        {/* BACK FACE (Edit Form) */}
-        <Animated.View style={[styles.cardFace, styles.cardFaceBack, backAnimatedStyle]}>
+        {/* BACK FACE — flows normally when isEditing, absolute when !isEditing */}
+        <Animated.View
+          style={[
+            styles.cardFace,
+            !isEditing && styles.cardFaceHidden,
+            backAnimatedStyle,
+          ]}
+          pointerEvents={isEditing ? 'auto' : 'none'}
+        >
           <LinearGradient
             colors={['#D5B58F', '#D55E46', '#E5DCCD']}
             start={{ x: 1, y: 0 }}
@@ -649,7 +678,7 @@ const styles = StyleSheet.create({
     borderRadius: CARD_BORDER_RADIUS,
     overflow: 'hidden',
   },
-  cardFaceBack: {
+  cardFaceHidden: {
     position: 'absolute',
     top: 0,
     left: 0,
