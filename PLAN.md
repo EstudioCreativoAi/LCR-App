@@ -1,139 +1,73 @@
-# PLAN: Replace All Icons & Emojis with Lucide React Native
+# PLAN: Fix Signature Screen Layout
 
-## Overview
-Replace all emoji characters and Unicode symbols across 13 files with proper `lucide-react-native` SVG icon components. This gives the app a consistent, premium, "modern app" feel.
+## Problem
+The SigningPhase in `app/sign/[leaseId].tsx` is broken on mobile web:
+- Canvas doesn't track touches (browser scrolls instead of drawing)
+- Buttons are off-screen / layout overflows
+- Orientation unlock is unnecessary (portrait is better for web)
 
-## Step 0 — Install Dependencies
-```bash
-npx expo install lucide-react-native react-native-svg
+## Root Cause
+1. Missing `touch-action: none` on the canvas container — mobile browsers intercept touches for scrolling
+2. `justifyContent: 'center'` on sigInner causes content to overflow both top and bottom
+3. Canvas height is calculated as `min(winH * 0.4, 420)` which can be too large or misaligned
+
+## Solution
+
+### Change 1: Add `touch-action: none` to canvas container
+Apply `touch-action: 'none'` CSS style to the `sigCanvasOuter` wrapper. This tells mobile browsers to let the canvas handle all touch events instead of interpreting them as scroll/zoom gestures.
+
+### Change 2: Portrait-only, remove orientation unlock
+Remove the `useEffect` that calls `ScreenOrientation.unlockAsync()`. Remove the `expo-screen-orientation` import if unused elsewhere. Portrait layout is natural for both mobile and desktop web.
+
+### Change 3: Parchment as background, transparent canvas
+- Move parchment background styling (color, ruled lines) to the container `<div>`/`<View>`
+- Set the actual `<SignatureCanvas>` background to `transparent`
+- The ink looks like it's on the parchment paper, but the parchment doesn't interfere with touch/click events
+
+### Change 4: Sticky bottom control bar
+- Remove Clear/Complete buttons from the top header
+- Add a sticky bottom bar with Clear (left) and Complete (right) buttons
+- Use `useSafeAreaInsets()` for bottom padding
+- Remove "Back" button entirely
+
+### Change 5: Cancel (X) only — remove Back button
+- Keep only the Cancel X button in the top-left corner
+- Pressing X calls `onCancel` (router.back())
+- Remove `onBack` prop from SigningPhase
+
+### Change 6: Fix layout structure
+New layout (top to bottom):
+```
+┌─────────────────────────┐
+│ [X]    "Your Signature"  │  ← Top bar (cancel + title)
+├─────────────────────────┤
+│                         │
+│  "I, {name}, hereby..." │  ← Label
+│                         │
+│  ┌───────────────────┐  │
+│  │                   │  │
+│  │  Parchment BG     │  │  ← Canvas container (flex: 1, touch-action: none)
+│  │  + transparent    │  │     Parchment is CSS background on container
+│  │    canvas on top  │  │     Canvas is transparent, fills container
+│  │                   │  │
+│  └───────────────────┘  │
+│                         │
+│  X ________________     │  ← Signature baseline
+│                         │
+├─────────────────────────┤
+│  [Clear]    [Complete]  │  ← Sticky bottom bar
+│         (safe area)     │
+└─────────────────────────┘
 ```
 
-## Step 1 — Tab Bar Icons (`app/(tabs)/_layout.tsx`)
-Add `tabBarIcon` to all 8 `<Tabs.Screen>` using the user-specified mapping:
+## Files Changed
+1. `app/sign/[leaseId].tsx` — SigningPhase component + styles
 
-| Tab | Lucide Icon |
-|-----|------------|
-| Home (index) | `Home` |
-| Search | `Search` |
-| Saved | `Heart` |
-| My Listings | `Building` |
-| Leads | `Users` |
-| Leases | `FileText` |
-| Commissions | `Banknote` |
-| Profile | `User` |
-
-- Active color: `COLORS.primary` (already set via `tabBarActiveTintColor`)
-- Inactive color: `COLORS.muted` (already set via `tabBarInactiveTintColor`)
-- Replace `🔔` notification bell with `<Bell>` icon.
-
-## Step 2 — PropertyFeed (`src/components/PropertyFeed.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `🛌` bed icon | `<BedDouble>` |
-| `🚿` bath icon | `<ShowerHead>` |
-| `★` rating text | `<Star>` (filled via `fill` prop) |
-| `🔍` search icon | `<Search>` |
-| `✕` clear search | `<X>` with hitSlop |
-| `⚙️` filter icon | `<SlidersHorizontal>` |
-| `🏠` empty state | `<Home>` (size 64) |
-
-## Step 3 — PropertyDetail (`src/components/PropertyDetail.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `✕ Close` back button | `<X>` + "Close" text |
-| `★` rating badges | `<Star>` (filled) |
-| `🛌` bedroom stat | `<BedDouble>` |
-| `🚿` bathroom stat | `<ShowerHead>` |
-| `🏠` property type | `<Home>` |
-
-## Step 4 — ReviewSystem (`src/components/ReviewSystem.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `★` / `☆` interactive stars | `<Star>` with conditional `fill` prop and `color` |
-
-Layout change: Stars go from `<Text>` inside `<TouchableOpacity>` to `<Star>` SVG components in a flex row. The `starIcon` fontSize style gets replaced with `size` prop (40).
-
-## Step 5 — RenterLeaseDashboard (`src/components/RenterLeaseDashboard.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `📍` address prefix | `<MapPin>` inline |
-| `✍️` sign lease button | `<PenLine>` |
-| `✓` deposit paid check | `<Check>` |
-| `📄` / `📝` action icons | `<FileText>` / `<FilePen>` |
-| `💬` chat action | `<MessageCircle>` |
-| `★` rate button | `<Star>` |
-| `🏢` empty state | `<Building>` (size 64) |
-
-## Step 6 — NotificationCenter (`src/components/NotificationCenter.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `💬` new_message icon | `<MessageCircle>` |
-| `📈` lead_update icon | `<TrendingUp>` |
-| `📝` lease_signed icon | `<FilePen>` |
-| `🔔` default icon | `<Bell>` |
-| `📭` empty state | `<BellOff>` (size 48) |
-
-## Step 7 — LeadDashboard (`src/components/LeadDashboard.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `💬 Chat` button text | `<MessageCircle>` + "Chat" |
-| `✅ Complete...` button | `<CheckCircle>` + text |
-| `📈` empty state | `<TrendingUp>` (size 64) |
-
-## Step 8 — CommissionTracker (`src/components/CommissionTracker.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `💸` empty state | `<Banknote>` (size 64) |
-
-## Step 9 — CreateListing (`src/components/CreateListing.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `📸` upload photo icon | `<Camera>` |
-| `✕` close button | `<X>` |
-
-## Step 10 — CaboCelebration (`src/components/CaboCelebration.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `🔑` key icon | `<Key>` (size 80, color white) |
-| `🏠` house icon | `<Home>` (size 80, color white) |
-
-## Step 11 — SearchFilterModal (`src/components/SearchFilterModal.tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `✕` close button | `<X>` |
-| `📅` calendar icon | `<Calendar>` |
-
-## Step 12 — sign/[leaseId].tsx (`app/sign/[leaseId].tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `✍️` processing pen | `<PenLine>` |
-| `✕` cancel button | `<X>` |
-| `✓` checkbox checkmark | `<Check>` |
-| `✍️` sign button icon | `<PenLine>` |
-
-## Step 13 — pay/[leaseId].tsx (`app/pay/[leaseId].tsx`)
-| Current | Replacement |
-|---------|-------------|
-| `🏠` hero placeholder | `<Home>` (size 48, color white) |
-
-## Global Conventions
-- **strokeWidth:** `2` everywhere
-- **Icon size defaults:** 20-24 for inline, 48-64 for empty states, 80 for celebration
-- **Colors:** Inherit from context. Use `color` prop to pass existing theme colors. Never hardcode new colors.
-- **hitSlop:** All close/cancel `<X>` buttons get `hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}` for mobile usability.
-- **Style changes:** Where emojis were rendered as `<Text style={{ fontSize: N }}>`, the `<Text>` wrapper is removed and replaced directly with the Lucide component. Corresponding `fontSize`-based styles become unused and will be cleaned up.
-
-## Files Touched (13 total)
-1. `app/(tabs)/_layout.tsx`
-2. `src/components/PropertyFeed.tsx`
-3. `src/components/PropertyDetail.tsx`
-4. `src/components/ReviewSystem.tsx`
-5. `src/components/RenterLeaseDashboard.tsx`
-6. `src/components/NotificationCenter.tsx`
-7. `src/components/LeadDashboard.tsx`
-8. `src/components/CommissionTracker.tsx`
-9. `src/components/CreateListing.tsx`
-10. `src/components/CaboCelebration.tsx`
-11. `src/components/SearchFilterModal.tsx`
-12. `app/sign/[leaseId].tsx`
-13. `app/pay/[leaseId].tsx`
+## Implementation Steps
+1. Remove orientation unlock `useEffect` and `ScreenOrientation` import
+2. Restructure SigningPhase layout: SafeAreaView → flex column → header / canvas area (flex:1) / bottom bar
+3. Add `touch-action: 'none'` to canvas outer container style
+4. Make canvas background transparent, parchment styling on container
+5. Move Clear/Complete to bottom sticky bar with safe area padding
+6. Remove Back button and `onBack` prop
+7. Build and verify

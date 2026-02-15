@@ -8,12 +8,10 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  useWindowDimensions,
 } from 'react-native'
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
-import * as ScreenOrientation from 'expo-screen-orientation'
 import SignatureCanvas from 'react-signature-canvas'
 import Animated, {
   useSharedValue,
@@ -128,119 +126,100 @@ function ProcessingScreen({ text }: { text: string }) {
 function SigningPhase({
   sigCanvasRef,
   renterName,
-  onBack,
   onCancel,
   onClear,
   onDone,
 }: {
   sigCanvasRef: React.RefObject<SignatureCanvas>
   renterName: string
-  onBack: () => void
   onCancel: () => void
   onClear: () => void
   onDone: () => void
 }) {
-  const { width: winW, height: winH } = useWindowDimensions()
-  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({
-    width: 400,
-    height: 300,
-  })
-  const canvasAreaHeight = Math.min(winH * 0.4, 420)
+  const insets = useSafeAreaInsets()
+  const bottomPad = Math.max(insets.bottom, 16)
+  const [canvasSize, setCanvasSize] = useState({ width: 400, height: 300 })
 
-  const handleCanvasLayout = useCallback((e: { nativeEvent: { layout: { width: number; height: number } } }) => {
-    const { width, height } = e.nativeEvent.layout
-    setCanvasSize({ width: Math.floor(width), height: Math.floor(height) })
-  }, [])
-
-  useEffect(() => {
-    if (Platform.OS === 'web') return
-    ScreenOrientation.unlockAsync()
-    return () => {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT)
-    }
-  }, [])
+  const handleCanvasLayout = useCallback(
+    (e: { nativeEvent: { layout: { width: number; height: number } } }) => {
+      const { width, height } = e.nativeEvent.layout
+      if (width > 0 && height > 0) {
+        setCanvasSize({ width: Math.floor(width), height: Math.floor(height) })
+      }
+    },
+    []
+  )
 
   return (
-    <View style={styles.sigContainer}>
-      <SafeAreaView style={styles.sigInner} edges={['top', 'left', 'right']}>
-        {/* Header bar - wrapped for safe area in landscape (notch/camera island) */}
-        <View style={styles.sigHeader}>
-          <View style={styles.sigHeaderLeft}>
-            <TouchableOpacity onPress={onCancel} style={styles.sigCancelBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <X size={18} color={COLORS.muted} strokeWidth={2} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onBack}>
-              <Text style={styles.sigBackText}>← Back</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.sigTitle}>Your Signature</Text>
-          <View style={styles.sigActions}>
-            <TouchableOpacity style={styles.sigClearBtn} onPress={onClear}>
-              <Text style={styles.sigClearText}>Clear</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.sigDoneBtn} onPress={onDone}>
-              <Text style={styles.sigDoneText}>Complete</Text>
-            </TouchableOpacity>
-          </View>
+    <SafeAreaView style={styles.sigContainer} edges={['top', 'left', 'right']}>
+      {/* Top bar: Cancel (X) + Title */}
+      <View style={styles.sigHeader}>
+        <TouchableOpacity
+          onPress={onCancel}
+          style={styles.sigCancelBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <X size={18} color={COLORS.white} strokeWidth={2} />
+        </TouchableOpacity>
+        <Text style={styles.sigTitle}>Your Signature</Text>
+        <View style={{ width: 32 }} />
+      </View>
+
+      {/* Parchment signature area — flex: 1 fills available space */}
+      <View style={styles.parchmentFrame}>
+        <Text style={styles.parchmentLabel}>
+          I, {renterName}, hereby sign this lease agreement
+        </Text>
+
+        <View style={styles.parchmentRule} />
+
+        {/* Canvas container: parchment background, touch-action: none */}
+        <View
+          style={styles.sigCanvasOuter}
+          onLayout={handleCanvasLayout}
+        >
+          <SignatureCanvas
+            key={`${canvasSize.width}x${canvasSize.height}`}
+            ref={sigCanvasRef}
+            penColor={INK_BLUE}
+            minWidth={1.5}
+            maxWidth={3.5}
+            velocityFilterWeight={0.7}
+            canvasProps={{
+              width: canvasSize.width,
+              height: canvasSize.height,
+              style: {
+                backgroundColor: 'transparent',
+                touchAction: 'none',
+                width: '100%',
+                height: '100%',
+              },
+            }}
+          />
         </View>
 
-        {/* Parchment signature area */}
-        <View style={styles.parchmentFrame}>
-          <View style={styles.parchmentRule} />
-
-          <Text style={styles.parchmentLabel}>
-            I, {renterName}, hereby sign this lease agreement
-          </Text>
-
-          <View
-            style={[styles.sigCanvasOuter, { width: '100%', height: canvasAreaHeight }]}
-            onLayout={handleCanvasLayout}
-          >
-            <SignatureCanvas
-              key={`${canvasSize.width}x${canvasSize.height}`}
-              ref={sigCanvasRef}
-              penColor={INK_BLUE}
-              minWidth={1.5}
-              maxWidth={3.5}
-              velocityFilterWeight={0.7}
-              canvasProps={{
-                width: canvasSize.width,
-                height: canvasSize.height,
-                style: {
-                  backgroundColor: PARCHMENT,
-                  borderRadius: 8,
-                  border: `1px solid ${PARCHMENT_DARK}`,
-                  boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.06)',
-                  backgroundImage: `
-                    repeating-linear-gradient(
-                      0deg,
-                      transparent,
-                      transparent 31px,
-                      ${PARCHMENT_DARK} 31px,
-                      ${PARCHMENT_DARK} 32px
-                    )
-                  `,
-                  backgroundPosition: '0 24px',
-                },
-              }}
-            />
-          </View>
-
-          <View style={styles.signatureXRow}>
-            <Text style={styles.signatureX}>X</Text>
-            <View style={styles.signatureBaseline} />
-          </View>
-
-          <View style={styles.parchmentRule} />
+        <View style={styles.signatureXRow}>
+          <Text style={styles.signatureX}>X</Text>
+          <View style={styles.signatureBaseline} />
         </View>
+      </View>
 
-        {/* Ink color indicator */}
-        <View style={styles.inkIndicator}>
-          <View style={[styles.inkDot, { backgroundColor: INK_BLUE }]} />
-          <Text style={styles.inkLabel}>Ink Blue</Text>
-        </View>
-      </SafeAreaView>
-    </View>
+      {/* Ink color indicator */}
+      <View style={styles.inkIndicator}>
+        <View style={[styles.inkDot, { backgroundColor: INK_BLUE }]} />
+        <Text style={styles.inkLabel}>Ink Blue</Text>
+      </View>
+
+      {/* Sticky bottom control bar */}
+      <View style={[styles.sigBottomBar, { paddingBottom: bottomPad }]}>
+        <TouchableOpacity style={styles.sigClearBtn} onPress={onClear}>
+          <Text style={styles.sigClearText}>Clear</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.sigDoneBtn} onPress={onDone}>
+          <Text style={styles.sigDoneText}>Complete</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   )
 }
 
@@ -559,7 +538,6 @@ export default function SignLeaseScreen() {
     return <SigningPhase
       sigCanvasRef={sigCanvasRef}
       renterName={renterName}
-      onBack={() => setPhase('preview')}
       onCancel={() => router.back()}
       onClear={handleClearSignature}
       onDone={handleDoneSignature}
@@ -813,27 +791,13 @@ const styles = StyleSheet.create({
   sigContainer: {
     flex: 1,
     backgroundColor: '#2C2C2E',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  sigInner: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
   },
   sigHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    width: '100%',
-    marginBottom: 16,
-  },
-  sigHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   sigCancelBtn: {
     width: 32,
@@ -843,54 +807,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sigCancelText: {
-    fontSize: 16,
-    color: COLORS.white,
-    fontWeight: 'bold',
-  },
-  sigBackText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.7)',
-  },
   sigTitle: {
     fontFamily: FONTS.bold,
     fontSize: 18,
     color: COLORS.white,
   },
-  sigActions: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  sigClearBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  sigClearText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: COLORS.white,
-  },
-  sigDoneBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: INK_BLUE,
-  },
-  sigDoneText: {
-    fontFamily: FONTS.bold,
-    fontSize: 14,
-    color: COLORS.white,
-  },
-  // Parchment frame
+  // Parchment frame — flex: 1 fills available space between header and bottom bar
   parchmentFrame: {
+    flex: 1,
     backgroundColor: PARCHMENT,
+    marginHorizontal: 16,
     borderRadius: 12,
-    padding: 20,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
@@ -908,16 +836,21 @@ const styles = StyleSheet.create({
     color: '#666',
     fontStyle: 'italic',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
+  // Canvas outer: parchment ruled-line background, canvas transparent on top
   sigCanvasOuter: {
+    flex: 1,
     borderRadius: 8,
     overflow: 'hidden',
-  },
+    backgroundColor: PARCHMENT,
+    backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 31px, ${PARCHMENT_DARK} 31px, ${PARCHMENT_DARK} 32px)`,
+    backgroundPosition: '0 24px',
+  } as any,
   signatureXRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginTop: 12,
+    marginTop: 8,
     paddingHorizontal: 4,
   },
   signatureX: {
@@ -936,7 +869,8 @@ const styles = StyleSheet.create({
   inkIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    justifyContent: 'center',
+    paddingVertical: 8,
     gap: 6,
   },
   inkDot: {
@@ -950,6 +884,40 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 12,
     color: 'rgba(255,255,255,0.5)',
+  },
+  // Bottom control bar
+  sigBottomBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 12,
+  },
+  sigClearBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+  },
+  sigClearText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.white,
+  },
+  sigDoneBtn: {
+    flex: 2,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: INK_BLUE,
+    alignItems: 'center',
+  },
+  sigDoneText: {
+    fontFamily: FONTS.bold,
+    fontSize: 14,
+    color: COLORS.white,
   },
   // ── Processing (Phase 3) ──
   processingContainer: {
