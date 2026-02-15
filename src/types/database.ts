@@ -83,6 +83,12 @@ export interface Database {
         Update: PaymentUpdate
         Relationships: []
       }
+      saved_properties: {
+        Row: SavedProperty
+        Insert: SavedPropertyInsert
+        Update: SavedPropertyUpdate
+        Relationships: []
+      }
     }
     Views: {
       [_: string]: never
@@ -500,4 +506,25 @@ export interface PaymentUpdate {
   stripe_payment_intent_id?: string | null
   created_at?: string
   updated_at?: string
+}
+
+export interface SavedProperty {
+  id: string
+  user_id: string
+  property_id: string
+  created_at: string
+}
+
+export interface SavedPropertyInsert {
+  id?: string
+  user_id: string
+  property_id: string
+  created_at?: string
+}
+
+export interface SavedPropertyUpdate {
+  id?: string
+  user_id?: string
+  property_id?: string
+  created_at?: string
 }
