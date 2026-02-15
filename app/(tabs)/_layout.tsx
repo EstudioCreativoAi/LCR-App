@@ -1,6 +1,6 @@
 import React from 'react'
 import { Tabs } from 'expo-router'
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native'
 import { useTranslation } from 'react-i18next'
 import { useSession } from '../../src/providers/SessionProvider'
 import { useRouter } from 'expo-router'
@@ -58,6 +58,9 @@ export default function TabsLayout() {
         },
         tabBarStyle: {
           borderTopColor: COLORS.background,
+          height: Platform.OS === 'ios' ? 88 : 70,
+          paddingTop: 10,
+          paddingBottom: Platform.OS === 'ios' ? 30 : 10,
         },
         headerStyle: {
           backgroundColor: COLORS.white,
