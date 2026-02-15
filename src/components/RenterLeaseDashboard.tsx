@@ -18,6 +18,7 @@ import { fetchDepositPayment } from '../services/paymentService'
 import ReviewSystem from './ReviewSystem'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formatPrice } from '../utils/currency'
+import { MapPin, PenLine, Check, FileText, FilePen, MessageCircle, Star, Building } from 'lucide-react-native'
 
 interface RenterLeaseDashboardProps {
   session: Session
@@ -174,7 +175,10 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
           activeOpacity={0.8}
         >
           <Text style={styles.propertyTitle}>{propertyTitle}</Text>
-          <Text style={styles.address}>📍 {property?.address || '—'}, {property?.city || ''}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            <MapPin size={14} color={COLORS.muted} strokeWidth={2} />
+            <Text style={[styles.address, { marginTop: 0 }]}>{property?.address || '—'}, {property?.city || ''}</Text>
+          </View>
           <View style={styles.divider} />
           <View style={styles.row}>
             <View>
@@ -199,7 +203,10 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
             onPress={() => handleSignLease(lease.id)}
             activeOpacity={0.8}
           >
-            <Text style={styles.signLeaseText}>✍️  Sign Lease</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <PenLine size={20} color={COLORS.white} strokeWidth={2} />
+              <Text style={styles.signLeaseText}>Sign Lease</Text>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -224,7 +231,10 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
           )}
           {isActive && hasDepositPaid && (
             <View style={styles.depositPaidBadge}>
-              <Text style={styles.depositPaidText}>Deposit Paid ✓</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.depositPaidText}>Deposit Paid</Text>
+                <Check size={16} color={COLORS.primary} strokeWidth={2} />
+              </View>
             </View>
           )}
         </View>
@@ -236,11 +246,14 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
             style={styles.smallCard}
             onPress={() => handleViewLease(lease.document_url)}
           >
-            <Text style={styles.actionIcon}>{hasSigned ? '📄' : '📝'}</Text>
+            {hasSigned
+              ? <FileText size={24} color={COLORS.primary} strokeWidth={2} style={{ marginBottom: 8 }} />
+              : <FilePen size={24} color={COLORS.primary} strokeWidth={2} style={{ marginBottom: 8 }} />
+            }
             <Text style={styles.actionText}>{hasSigned ? 'View Signed Lease' : 'View Lease'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.smallCard} onPress={handleContactLandlord}>
-            <Text style={styles.actionIcon}>💬</Text>
+            <MessageCircle size={24} color={COLORS.primary} strokeWidth={2} style={{ marginBottom: 8 }} />
             <Text style={styles.actionText}>Contact Landlord</Text>
           </TouchableOpacity>
         </View>
@@ -250,7 +263,10 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
             style={[styles.rateButton, { marginTop: SPACING.lg }]}
             onPress={() => setShowRatingModal({ propertyId: lease.property_id, leaseId: lease.id })}
           >
-            <Text style={styles.rateButtonText}>★ Rate Your Stay</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Star size={16} color={COLORS.white} fill={COLORS.white} strokeWidth={2} />
+              <Text style={styles.rateButtonText}>Rate Your Stay</Text>
+            </View>
           </TouchableOpacity>
         )}
       </View>
@@ -270,7 +286,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
         ) : leases.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🏢</Text>
+            <Building size={64} color={COLORS.muted} strokeWidth={2} style={{ marginBottom: SPACING.md, opacity: 0.3 }} />
             <Text style={styles.emptyTitle}>No leases found</Text>
             <Text style={styles.emptyText}>Any properties you rent will appear here once the lease is active.</Text>
           </View>

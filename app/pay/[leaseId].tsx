@@ -18,6 +18,7 @@ import { useSession } from '../../src/providers/SessionProvider'
 import { supabase } from '../../src/lib/supabase'
 import { createPaymentIntent, confirmPayment } from '../../src/services/paymentService'
 import { formatPrice } from '../../src/utils/currency'
+import { Home } from 'lucide-react-native'
 import { COLORS, SPACING, FONTS } from '../../src/theme/theme'
 import CaboCelebration from '../../src/components/CaboCelebration'
 import type { Lease, Property, Profile } from '../../src/types/database'
@@ -325,7 +326,7 @@ export default function PaymentScreen() {
             colors={[COLORS.primary, COLORS.accent]}
             style={styles.heroImage}
           >
-            <Text style={styles.heroPlaceholder}>🏠</Text>
+            <Home size={48} color="#FFFFFF" strokeWidth={2} />
           </LinearGradient>
         )}
 

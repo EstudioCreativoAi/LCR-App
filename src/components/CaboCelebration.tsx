@@ -12,6 +12,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated'
 import { FONTS } from '../theme/theme'
+import { Key, Home } from 'lucide-react-native'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 const CONFETTI_COUNT = 30
@@ -158,12 +159,12 @@ export default function CaboCelebration({ firstName, onDismiss }: CaboCelebratio
 
         {/* Key Icon */}
         <Animated.View style={[styles.iconContainer, keyAnimatedStyle]}>
-          <Text style={styles.icon}>🔑</Text>
+          <Key size={80} color="#FFFFFF" strokeWidth={2} />
         </Animated.View>
 
         {/* House Icon */}
         <Animated.View style={[styles.iconContainer, houseAnimatedStyle]}>
-          <Text style={styles.icon}>🏠</Text>
+          <Home size={80} color="#FFFFFF" strokeWidth={2} />
         </Animated.View>
 
         {/* Welcome Text */}

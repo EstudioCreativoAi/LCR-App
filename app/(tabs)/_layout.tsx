@@ -6,6 +6,7 @@ import { useSession } from '../../src/providers/SessionProvider'
 import { useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING } from '../../src/theme/theme'
 import i18n from '../../src/i18n'
+import { Home, Search, Heart, Building, Users, FileText, Banknote, User, Bell } from 'lucide-react-native'
 
 function HeaderRight() {
   const { session, signOut } = useSession()
@@ -18,7 +19,7 @@ function HeaderRight() {
         style={styles.notificationButton}
         onPress={() => router.push('/notifications')}
       >
-        <Text style={{ fontSize: 22 }}>🔔</Text>
+        <Bell size={22} color={COLORS.text} strokeWidth={2} />
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -74,6 +75,7 @@ export default function TabsLayout() {
           title: t('common.properties'),
           tabBarLabel: t('common.properties'),
           headerTitle: 'LCR App',
+          tabBarIcon: ({ color }) => <Home size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
@@ -81,6 +83,7 @@ export default function TabsLayout() {
         options={{
           title: 'Search',
           tabBarLabel: 'Search',
+          tabBarIcon: ({ color }) => <Search size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
@@ -89,6 +92,7 @@ export default function TabsLayout() {
           title: 'Saved',
           tabBarLabel: 'Saved',
           href: isRenter ? '/saved' : null,
+          tabBarIcon: ({ color }) => <Heart size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
@@ -97,6 +101,7 @@ export default function TabsLayout() {
           title: 'My Listings',
           tabBarLabel: 'My Listings',
           href: isLandlord || isAgent ? '/my-listings' : null,
+          tabBarIcon: ({ color }) => <Building size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
@@ -105,6 +110,7 @@ export default function TabsLayout() {
           title: t('common.leads'),
           tabBarLabel: t('common.leads'),
           href: isLandlord || isAgent ? '/leads' : null,
+          tabBarIcon: ({ color }) => <Users size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
@@ -113,6 +119,7 @@ export default function TabsLayout() {
           title: 'My Leases',
           tabBarLabel: 'My Leases',
           href: isRenter ? '/leases' : null,
+          tabBarIcon: ({ color }) => <FileText size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
@@ -121,6 +128,7 @@ export default function TabsLayout() {
           title: t('common.earnings'),
           tabBarLabel: t('common.earnings'),
           href: isAgent ? '/commissions' : null,
+          tabBarIcon: ({ color }) => <Banknote size={22} color={color} strokeWidth={2} />,
         }}
       />
       <Tabs.Screen
@@ -128,6 +136,7 @@ export default function TabsLayout() {
         options={{
           title: 'Profile',
           tabBarLabel: 'Profile',
+          tabBarIcon: ({ color }) => <User size={22} color={color} strokeWidth={2} />,
         }}
       />
     </Tabs>

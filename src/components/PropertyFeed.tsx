@@ -22,6 +22,7 @@ import PropertyDetail from './PropertyDetail'
 import ReviewSystem from './ReviewSystem'
 import { Session } from '@supabase/supabase-js'
 import { formatPrice } from '../utils/currency'
+import { BedDouble, ShowerHead, Star, Search as SearchIcon, X, SlidersHorizontal, Home } from 'lucide-react-native'
 
 interface Property extends DBProperty {
   avg_rating?: number
@@ -159,10 +160,13 @@ const PropertyCard = ({
         </View>
 
         <View style={styles.ratingRow}>
-          <Text style={styles.ratingText}>
-            {item.avg_rating ? `★ ${item.avg_rating.toFixed(1)}` : '★ New'} 
-            {item.review_count ? ` (${item.review_count})` : ''}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Star size={14} color={COLORS.secondary} fill={COLORS.secondary} strokeWidth={2} />
+            <Text style={styles.ratingText}>
+              {item.avg_rating ? item.avg_rating.toFixed(1) : 'New'}
+              {item.review_count ? ` (${item.review_count})` : ''}
+            </Text>
+          </View>
         </View>
 
         <Text style={styles.address} numberOfLines={1}>
@@ -172,11 +176,11 @@ const PropertyCard = ({
 
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
-            <Text style={styles.detailIcon}>🛌</Text>
+            <BedDouble size={18} color={COLORS.muted} strokeWidth={2} />
             <Text style={styles.detailText}>{item.bedrooms} {t('common.bed')}</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={styles.detailIcon}>🚿</Text>
+            <ShowerHead size={18} color={COLORS.muted} strokeWidth={2} />
             <Text style={styles.detailText}>{item.bathrooms} {t('common.bath')}</Text>
           </View>
         </View>
@@ -371,7 +375,7 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
       <View style={styles.container}>
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
-            <Text style={styles.searchIcon}>🔍</Text>
+            <SearchIcon size={16} color={COLORS.muted} strokeWidth={2} style={{ marginRight: SPACING.sm }} />
             <TextInput
               style={styles.searchInput}
               placeholder={t('common.search')}
@@ -381,8 +385,8 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
               autoCapitalize="words"
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')}>
-                <Text style={styles.clearIcon}>✕</Text>
+              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <X size={16} color={COLORS.muted} strokeWidth={2} />
               </TouchableOpacity>
             )}
           </View>
@@ -391,7 +395,7 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
             style={[styles.filterButton, activeFilterCount() > 0 && styles.filterButtonActive]} 
             onPress={() => setShowFilterModal(true)}
           >
-            <Text style={[styles.filterIcon, activeFilterCount() > 0 && styles.filterIconActive]}>⚙️</Text>
+            <SlidersHorizontal size={20} color={activeFilterCount() > 0 ? COLORS.white : COLORS.muted} strokeWidth={2} />
             {activeFilterCount() > 0 && (
               <View style={styles.filterBadge}>
                 <Text style={styles.filterBadgeText}>{activeFilterCount()}</Text>
@@ -412,7 +416,7 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
           </View>
         ) : properties.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>🏠</Text>
+            <Home size={64} color={COLORS.muted} strokeWidth={2} style={{ marginBottom: SPACING.md, opacity: 0.5 }} />
             <Text style={styles.emptyTitle}>No properties found</Text>
             <Text style={styles.emptyText}>Try adjusting your filters or search area</Text>
           </View>

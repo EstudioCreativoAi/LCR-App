@@ -19,6 +19,7 @@ import { processImageForUpload, uploadImageToStorage } from '../utils/images'
 import { PropertyInsert } from '../types/database'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formStyles } from '../theme/forms'
+import { Camera, X } from 'lucide-react-native'
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window')
 const MAX_CONTENT_WIDTH = 800
@@ -340,7 +341,7 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
       </Text>
 
       <TouchableOpacity style={styles.uploadBox} onPress={pickImages}>
-        <Text style={styles.uploadIcon}>📸</Text>
+        <Camera size={32} color={COLORS.muted} strokeWidth={2} style={{ marginBottom: SPACING.sm }} />
         <Text style={styles.uploadText}>{selectedImages.length > 0 ? `${selectedImages.length} Photos Selected` : 'Select Photos'}</Text>
       </TouchableOpacity>
 
@@ -380,7 +381,7 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
         <View style={styles.header}>
           <Text style={styles.title}>Create New Listing</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <Text style={styles.closeText}>✕</Text>
+            <X size={16} color={COLORS.muted} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 

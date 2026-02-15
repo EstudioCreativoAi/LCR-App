@@ -12,6 +12,7 @@ import Slider from '@react-native-community/slider'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formatPrice } from '../utils/currency'
+import { X, Calendar } from 'lucide-react-native'
 
 export interface SearchFilters {
   priceMin: number
@@ -90,8 +91,8 @@ export default function SearchFilterModal({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Filter Properties</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>✕</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={20} color={COLORS.muted} strokeWidth={2} />
             </TouchableOpacity>
           </View>
 
@@ -204,7 +205,7 @@ export default function SearchFilterModal({
               <Text style={styles.datePickerButtonText}>
                 {formatDate(moveInDate)}
               </Text>
-              <Text style={styles.calendarIcon}>📅</Text>
+              <Calendar size={18} color={COLORS.text} strokeWidth={2} />
             </TouchableOpacity>
 
             {showDatePicker && (

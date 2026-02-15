@@ -16,6 +16,7 @@ import { Property, Rating } from '../types/database'
 import { useTranslation } from 'react-i18next'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formatPrice } from '../utils/currency'
+import { X, Star, BedDouble, ShowerHead, Home } from 'lucide-react-native'
 
 const { width: WINDOW_WIDTH } = Dimensions.get('window')
 const IS_WEB = Platform.OS === 'web'
@@ -75,8 +76,9 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
             <Text style={styles.reviewDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
           </View>
         </View>
-        <View style={styles.ratingBadge}>
-          <Text style={styles.ratingText}>★ {item.rating}</Text>
+        <View style={[styles.ratingBadge, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+          <Star size={13} color={COLORS.secondary} fill={COLORS.secondary} strokeWidth={2} />
+          <Text style={styles.ratingText}>{item.rating}</Text>
         </View>
       </View>
       {item.comment && (
@@ -89,8 +91,9 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
     <View style={styles.overlay}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.backButton}>
-            <Text style={styles.backButtonText}>✕ Close</Text>
+          <TouchableOpacity onPress={onClose} style={[styles.backButton, { flexDirection: 'row', alignItems: 'center', gap: 4 }]} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <X size={14} color={COLORS.muted} strokeWidth={2} />
+            <Text style={styles.backButtonText}>Close</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle} numberOfLines={1}>{property.address}</Text>
         </View>
@@ -109,7 +112,10 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
               </View>
               {avgRating > 0 && (
                 <View style={styles.avgRatingBadge}>
-                  <Text style={styles.avgRatingText}>★ {avgRating.toFixed(1)}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Star size={20} color={COLORS.secondary} fill={COLORS.secondary} strokeWidth={2} />
+                    <Text style={styles.avgRatingText}>{avgRating.toFixed(1)}</Text>
+                  </View>
                   <Text style={styles.reviewCount}>({reviews.length} reviews)</Text>
                 </View>
               )}
@@ -117,15 +123,15 @@ export default function PropertyDetail({ property, onClose }: PropertyDetailProp
 
             <View style={styles.statsRow}>
               <View style={styles.statItem}>
-                <Text style={styles.statIcon}>🛌</Text>
+                <BedDouble size={24} color={COLORS.text} strokeWidth={2} />
                 <Text style={styles.statText}>{property.bedrooms} Bed</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statIcon}>🚿</Text>
+                <ShowerHead size={24} color={COLORS.text} strokeWidth={2} />
                 <Text style={styles.statText}>{property.bathrooms} Bath</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statIcon}>🏠</Text>
+                <Home size={24} color={COLORS.text} strokeWidth={2} />
                 <Text style={styles.statText}>{property.property_type}</Text>
               </View>
             </View>

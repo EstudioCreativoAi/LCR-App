@@ -12,6 +12,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { RatingCategory } from '../types/database'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
+import { Star } from 'lucide-react-native'
 
 const IS_WEB = Platform.OS === 'web'
 
@@ -80,9 +81,12 @@ export default function ReviewSystem({
             onPress={() => setRating(star)}
             style={styles.starButton}
           >
-            <Text style={[styles.starIcon, rating >= star && styles.starIconActive]}>
-              {rating >= star ? '★' : '☆'}
-            </Text>
+            <Star
+              size={40}
+              color={rating >= star ? COLORS.secondary : COLORS.muted}
+              fill={rating >= star ? COLORS.secondary : 'none'}
+              strokeWidth={2}
+            />
           </TouchableOpacity>
         ))}
       </View>

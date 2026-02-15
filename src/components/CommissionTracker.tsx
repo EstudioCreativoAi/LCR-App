@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { Commission } from '../types/database'
 import { formatPrice } from '../utils/currency'
+import { Banknote } from 'lucide-react-native'
 
 const IS_WEB = Platform.OS === 'web'
 const MAX_CONTENT_WIDTH = 800
@@ -253,7 +254,7 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
 
         {filteredCommissions.length === 0 && (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>💸</Text>
+            <Banknote size={64} color={COLORS.muted} strokeWidth={2} style={{ marginBottom: 20, opacity: 0.5 }} />
             <Text style={styles.emptyTitle}>No commissions found</Text>
             <Text style={styles.emptyText}>You haven't earned any commissions for the selected period yet.</Text>
           </View>

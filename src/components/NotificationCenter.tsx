@@ -12,6 +12,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { Notification } from '../types/database'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
+import { MessageCircle, TrendingUp, FilePen, Bell, BellOff } from 'lucide-react-native'
 
 interface NotificationCenterProps {
   onClose: () => void
@@ -97,11 +98,12 @@ export default function NotificationCenter({ onClose, onAction, userId }: Notifi
     })
 
     const getIcon = (type: string) => {
+      const iconProps = { size: 20, color: COLORS.text, strokeWidth: 2 } as const
       switch (type) {
-        case 'new_message': return '💬'
-        case 'lead_update': return '📈'
-        case 'lease_signed': return '📝'
-        default: return '🔔'
+        case 'new_message': return <MessageCircle {...iconProps} />
+        case 'lead_update': return <TrendingUp {...iconProps} />
+        case 'lease_signed': return <FilePen {...iconProps} />
+        default: return <Bell {...iconProps} />
       }
     }
 
@@ -114,7 +116,7 @@ export default function NotificationCenter({ onClose, onAction, userId }: Notifi
         }}
       >
         <View style={styles.iconContainer}>
-          <Text style={styles.icon}>{getIcon(item.type)}</Text>
+          {getIcon(item.type)}
         </View>
         <View style={styles.contentContainer}>
           <View style={styles.notifHeader}>
@@ -151,7 +153,7 @@ export default function NotificationCenter({ onClose, onAction, userId }: Notifi
           refreshing={refreshing}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyIcon}>📭</Text>
+              <BellOff size={48} color={COLORS.muted} strokeWidth={2} style={{ marginBottom: SPACING.md, opacity: 0.5 }} />
               <Text style={styles.emptyText}>All caught up! No new notifications.</Text>
             </View>
           }

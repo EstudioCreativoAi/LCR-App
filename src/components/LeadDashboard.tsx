@@ -19,6 +19,7 @@ import { LeadListItem } from './LeadListItem'
 import ReviewSystem from './ReviewSystem'
 import { Session } from '@supabase/supabase-js'
 import { isTablet } from '../utils/responsive'
+import { MessageCircle, CheckCircle, TrendingUp } from 'lucide-react-native'
 
 const IS_WEB = Platform.OS === 'web'
 const MAX_CONTENT_WIDTH = 800
@@ -260,7 +261,10 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
                   setActiveChatLeadId(lead.id)
                 }}
               >
-                <Text style={styles.chatButtonText}>💬 Chat</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <MessageCircle size={12} color={COLORS.white} strokeWidth={2} />
+                  <Text style={styles.chatButtonText}>Chat</Text>
+                </View>
               </TouchableOpacity>
             </View>
 
@@ -276,7 +280,10 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
                     })
                   }}
                 >
-                  <Text style={styles.completeButtonText}>✅ Complete Lease & Rate Renter</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <CheckCircle size={14} color={COLORS.white} strokeWidth={2} />
+                    <Text style={styles.completeButtonText}>Complete Lease & Rate Renter</Text>
+                  </View>
                 </TouchableOpacity>
               </View>
             )}
@@ -392,7 +399,10 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
                             setActiveChatLeadId(lead.id)
                           }}
                         >
-                          <Text style={styles.chatButtonText}>💬 Chat</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <MessageCircle size={12} color={COLORS.white} strokeWidth={2} />
+                  <Text style={styles.chatButtonText}>Chat</Text>
+                </View>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -422,7 +432,7 @@ export default function LeadDashboard({ onClose, isDemo, session }: { onClose?: 
 
         {leads.length === 0 && (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📈</Text>
+            <TrendingUp size={64} color={COLORS.muted} strokeWidth={2} style={{ marginBottom: 20, opacity: 0.5 }} />
             <Text style={styles.emptyTitle}>No leads yet</Text>
             <Text style={styles.emptyText}>When renters are interested in your properties, they'll appear here.</Text>
           </View>
