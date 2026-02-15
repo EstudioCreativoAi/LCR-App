@@ -74,12 +74,14 @@ const DEMO_LANDLORD = {
 
 function CardForm({
   depositAmount,
+  renterName,
   paymentId,
   clientSecret,
   onSuccess,
   onError,
 }: {
   depositAmount: number
+  renterName: string
   paymentId: string
   clientSecret: string
   onSuccess: () => void
@@ -103,7 +105,13 @@ function CardForm({
 
     try {
       const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: { card: cardElement },
+        payment_method: {
+          card: cardElement,
+          billing_details: { name: renterName || 'Renter' },
+        },
+        return_url: Platform.OS === 'web'
+          ? window.location.href
+          : undefined,
       })
 
       if (error) {
@@ -131,7 +139,7 @@ function CardForm({
       <Text style={styles.cardFormTitle}>Enter Card Details</Text>
       <View style={styles.cardElementWrapper}>
         <CardElement
-          options={{ style: CARD_ELEMENT_STYLE, hidePostalCode: true }}
+          options={{ style: CARD_ELEMENT_STYLE }}
           onChange={(e) => setCardReady(e.complete)}
         />
       </View>
@@ -378,6 +386,7 @@ export default function PaymentScreen() {
             <Elements stripe={stripePromise}>
               <CardForm
                 depositAmount={depositAmount}
+                renterName={firstName}
                 paymentId={paymentId}
                 clientSecret={clientSecret}
                 onSuccess={handlePaymentSuccess}
