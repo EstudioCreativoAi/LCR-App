@@ -133,7 +133,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
   const renderLeaseCard = (lease: any) => {
     const isCompleted = lease.status === 'completed'
     const isActive = lease.status === 'active'
-    const needsSignature = lease.status === 'sent_for_signature'
+    const needsSignature = lease.status === 'sent_for_signature' || lease.status === 'pending'
     const hasSigned = !!lease.document_url
     const property = lease.properties
     const propertyTitle = property?.description?.slice(0, 50) || property?.address || 'Property'
@@ -165,7 +165,14 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
         </View>
 
         {/* Property Overview Card */}
-        <TouchableOpacity style={styles.card} onPress={handleViewLease} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => needsSignature
+            ? handleSignLease(lease.id)
+            : handleViewLease(lease.document_url)
+          }
+          activeOpacity={0.8}
+        >
           <Text style={styles.propertyTitle}>{propertyTitle}</Text>
           <Text style={styles.address}>📍 {property?.address || '—'}, {property?.city || ''}</Text>
           <View style={styles.divider} />
