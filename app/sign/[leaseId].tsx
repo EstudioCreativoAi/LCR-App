@@ -10,9 +10,10 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
+import * as ScreenOrientation from 'expo-screen-orientation'
 import SignatureCanvas from 'react-signature-canvas'
 import Animated, {
   useSharedValue,
@@ -33,6 +34,7 @@ import {
   finalizeLease,
 } from '../../src/services/leaseDocumentService'
 import { formatPrice } from '../../src/utils/currency'
+import { PenLine, X, Check } from 'lucide-react-native'
 import { COLORS, SPACING, FONTS } from '../../src/theme/theme'
 import type { LeaseTemplateData } from '../../src/templates/leaseTemplate'
 
@@ -108,7 +110,9 @@ function ProcessingScreen({ text }: { text: string }) {
   return (
     <View style={styles.processingContainer}>
       <View style={styles.processingCard}>
-        <Animated.Text style={[styles.processingPen, penStyle]}>✍️</Animated.Text>
+        <Animated.View style={[styles.processingPen, penStyle]}>
+          <PenLine size={40} color={COLORS.primary} strokeWidth={2} />
+        </Animated.View>
         <View style={styles.processingLine} />
         <Text style={styles.processingText}>{text}</Text>
         <View style={styles.processingDots}>
@@ -137,27 +141,33 @@ function SigningPhase({
   onDone: () => void
 }) {
   const { width: winW, height: winH } = useWindowDimensions()
-  const isSmallScreen = winW < 768
-  const longSide = Math.max(winW, winH)
-  const shortSide = Math.min(winW, winH)
-  const canvasWidth = isSmallScreen ? longSide - 48 : Math.min(winW - 80, 900)
-  const canvasHeight = isSmallScreen ? shortSide - 140 : 420
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({
+    width: 400,
+    height: 300,
+  })
+  const canvasAreaHeight = Math.min(winH * 0.4, 420)
+
+  const handleCanvasLayout = useCallback((e: { nativeEvent: { layout: { width: number; height: number } } }) => {
+    const { width, height } = e.nativeEvent.layout
+    setCanvasSize({ width: Math.floor(width), height: Math.floor(height) })
+  }, [])
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return
+    ScreenOrientation.unlockAsync()
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT)
+    }
+  }, [])
 
   return (
     <View style={styles.sigContainer}>
-      <SafeAreaView style={[
-        styles.sigInner,
-        isSmallScreen && {
-          transform: [{ rotate: '90deg' }],
-          width: winH,
-          height: winW,
-        },
-      ]}>
-        {/* Header bar */}
+      <SafeAreaView style={styles.sigInner} edges={['top', 'left', 'right']}>
+        {/* Header bar - wrapped for safe area in landscape (notch/camera island) */}
         <View style={styles.sigHeader}>
           <View style={styles.sigHeaderLeft}>
-            <TouchableOpacity onPress={onCancel} style={styles.sigCancelBtn}>
-              <Text style={styles.sigCancelText}>✕</Text>
+            <TouchableOpacity onPress={onCancel} style={styles.sigCancelBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={18} color={COLORS.muted} strokeWidth={2} />
             </TouchableOpacity>
             <TouchableOpacity onPress={onBack}>
               <Text style={styles.sigBackText}>← Back</Text>
@@ -182,16 +192,20 @@ function SigningPhase({
             I, {renterName}, hereby sign this lease agreement
           </Text>
 
-          <View style={styles.sigCanvasOuter}>
+          <View
+            style={[styles.sigCanvasOuter, { width: '100%', height: canvasAreaHeight }]}
+            onLayout={handleCanvasLayout}
+          >
             <SignatureCanvas
+              key={`${canvasSize.width}x${canvasSize.height}`}
               ref={sigCanvasRef}
               penColor={INK_BLUE}
               minWidth={1.5}
               maxWidth={3.5}
               velocityFilterWeight={0.7}
               canvasProps={{
-                width: canvasWidth,
-                height: canvasHeight,
+                width: canvasSize.width,
+                height: canvasSize.height,
                 style: {
                   backgroundColor: PARCHMENT,
                   borderRadius: 8,
@@ -226,6 +240,142 @@ function SigningPhase({
           <Text style={styles.inkLabel}>Ink Blue</Text>
         </View>
       </SafeAreaView>
+    </View>
+  )
+}
+
+const FLOATING_BAR_HEIGHT = 120
+
+function PreviewPhase({
+  property,
+  lease,
+  previewHtml,
+  agreed,
+  onToggleAgreed,
+  onSign,
+  onBack,
+}: {
+  property: any
+  lease: any
+  previewHtml: string
+  agreed: boolean
+  onToggleAgreed: () => void
+  onSign: () => void
+  onBack: () => void
+}) {
+  const insets = useSafeAreaInsets()
+  const bottomPad = Math.max(insets.bottom, 16)
+
+  return (
+    <View style={styles.container}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: FLOATING_BAR_HEIGHT + bottomPad + 20 }]}>
+        {/* Back button */}
+        <TouchableOpacity style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+
+        {/* Document header */}
+        <View style={styles.docHeader}>
+          <View style={styles.sealBadge}>
+            <Text style={styles.sealText}>LCR</Text>
+          </View>
+          <View style={styles.docHeaderText}>
+            <Text style={styles.title}>Lease Agreement</Text>
+            <Text style={styles.subtitle}>
+              {property?.address}, {property?.city}
+            </Text>
+          </View>
+        </View>
+
+        {/* Quick terms summary */}
+        <View style={styles.termsSummary}>
+          <View style={styles.termItem}>
+            <Text style={styles.termLabel}>Rent</Text>
+            <Text style={styles.termValue}>{formatPrice(lease?.monthly_rent || 0)}</Text>
+          </View>
+          <View style={styles.termDivider} />
+          <View style={styles.termItem}>
+            <Text style={styles.termLabel}>Deposit</Text>
+            <Text style={styles.termValue}>{formatPrice(lease?.deposit_amount || 0)}</Text>
+          </View>
+          <View style={styles.termDivider} />
+          <View style={styles.termItem}>
+            <Text style={styles.termLabel}>Term</Text>
+            <Text style={styles.termValue}>
+              {lease ? Math.round((new Date(lease.end_date).getTime() - new Date(lease.start_date).getTime()) / (30.44 * 86400000)) : 12} mo
+            </Text>
+          </View>
+        </View>
+
+        {/* Lease document preview */}
+        <View style={styles.leasePreviewCard}>
+          <View style={styles.previewHeader}>
+            <Text style={styles.previewHeaderText}>FULL AGREEMENT</Text>
+            <View style={styles.previewHeaderLine} />
+          </View>
+          {Platform.OS === 'web' ? (
+            <div
+              style={{
+                fontSize: '12px',
+                lineHeight: '1.6',
+                maxHeight: 450,
+                overflowY: 'auto' as any,
+                padding: '20px 24px',
+                fontFamily: 'Georgia, serif',
+              }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          ) : (
+            <Text style={styles.leasePreviewFallback}>
+              Lease preview is available on web. Please review and sign.
+            </Text>
+          )}
+        </View>
+
+        {/* Agreement checkbox — stays inline so user scrolls to it */}
+        <TouchableOpacity
+          style={styles.checkboxRow}
+          onPress={onToggleAgreed}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
+            {agreed && <Check size={16} color={COLORS.white} strokeWidth={2} />}
+          </View>
+          <Text style={styles.checkboxLabel}>
+            I have read and agree to the terms of this lease agreement
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      {/* Floating Sign button with gradient fade */}
+      <View style={[styles.floatingBar, { paddingBottom: bottomPad }]}>
+        <LinearGradient
+          colors={['rgba(229,220,205,0)', 'rgba(229,220,205,0.95)', COLORS.background]}
+          style={styles.floatingBarGradient}
+          pointerEvents="none"
+        />
+        <View style={styles.floatingBarContent}>
+          <TouchableOpacity
+            style={[styles.signButton, !agreed && styles.signButtonDisabled]}
+            onPress={onSign}
+            disabled={!agreed}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={agreed ? [INK_BLUE, '#000066'] : ['#999', '#888']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.signButtonGradient}
+            >
+              <PenLine size={20} color={COLORS.white} strokeWidth={2} />
+              <Text style={styles.signButtonText}>Sign Lease Agreement</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+          <Text style={styles.legalNote}>
+            By signing, you enter a binding residential lease under the laws of Baja California Sur, Mexico.
+          </Text>
+        </View>
+      </View>
     </View>
   )
 }
@@ -417,110 +567,15 @@ export default function SignLeaseScreen() {
   }
 
   // Phase 1: Lease preview with document-style design
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Back button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
-
-        {/* Document header */}
-        <View style={styles.docHeader}>
-          <View style={styles.sealBadge}>
-            <Text style={styles.sealText}>LCR</Text>
-          </View>
-          <View style={styles.docHeaderText}>
-            <Text style={styles.title}>Lease Agreement</Text>
-            <Text style={styles.subtitle}>
-              {property?.address}, {property?.city}
-            </Text>
-          </View>
-        </View>
-
-        {/* Quick terms summary */}
-        <View style={styles.termsSummary}>
-          <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Rent</Text>
-            <Text style={styles.termValue}>{formatPrice(lease?.monthly_rent || 0)}</Text>
-          </View>
-          <View style={styles.termDivider} />
-          <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Deposit</Text>
-            <Text style={styles.termValue}>{formatPrice(lease?.deposit_amount || 0)}</Text>
-          </View>
-          <View style={styles.termDivider} />
-          <View style={styles.termItem}>
-            <Text style={styles.termLabel}>Term</Text>
-            <Text style={styles.termValue}>
-              {lease ? Math.round((new Date(lease.end_date).getTime() - new Date(lease.start_date).getTime()) / (30.44 * 86400000)) : 12} mo
-            </Text>
-          </View>
-        </View>
-
-        {/* Lease document preview */}
-        <View style={styles.leasePreviewCard}>
-          <View style={styles.previewHeader}>
-            <Text style={styles.previewHeaderText}>FULL AGREEMENT</Text>
-            <View style={styles.previewHeaderLine} />
-          </View>
-          {Platform.OS === 'web' ? (
-            <div
-              style={{
-                fontSize: '12px',
-                lineHeight: '1.6',
-                maxHeight: 450,
-                overflowY: 'auto' as any,
-                padding: '20px 24px',
-                fontFamily: 'Georgia, serif',
-              }}
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
-            />
-          ) : (
-            <Text style={styles.leasePreviewFallback}>
-              Lease preview is available on web. Please review and sign.
-            </Text>
-          )}
-        </View>
-
-        {/* Agreement checkbox */}
-        <TouchableOpacity
-          style={styles.checkboxRow}
-          onPress={() => setAgreed(!agreed)}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
-            {agreed && <Text style={styles.checkmark}>✓</Text>}
-          </View>
-          <Text style={styles.checkboxLabel}>
-            I have read and agree to the terms of this lease agreement
-          </Text>
-        </TouchableOpacity>
-
-        {/* Sign button */}
-        <TouchableOpacity
-          style={[styles.signButton, !agreed && styles.signButtonDisabled]}
-          onPress={handleSign}
-          disabled={!agreed}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={agreed ? [INK_BLUE, '#000066'] : ['#999', '#888']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.signButtonGradient}
-          >
-            <Text style={styles.signButtonIcon}>✍️</Text>
-            <Text style={styles.signButtonText}>Sign Lease Agreement</Text>
-          </LinearGradient>
-        </TouchableOpacity>
-
-        <Text style={styles.legalNote}>
-          By signing, you enter a binding residential lease under the laws of Baja California Sur, Mexico.
-        </Text>
-      </ScrollView>
-    </View>
-  )
+  return <PreviewPhase
+    property={property}
+    lease={lease}
+    previewHtml={previewHtml}
+    agreed={agreed}
+    onToggleAgreed={() => setAgreed(!agreed)}
+    onSign={handleSign}
+    onBack={() => router.back()}
+  />
 }
 
 const styles = StyleSheet.create({
@@ -537,7 +592,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: SPACING.lg,
     paddingTop: Platform.OS === 'web' ? 24 : 50,
-    paddingBottom: 60,
     maxWidth: 680,
     alignSelf: 'center',
     width: '100%',
@@ -720,9 +774,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  signButtonIcon: {
-    fontSize: 22,
-  },
   signButtonText: {
     fontFamily: FONTS.bold,
     fontSize: 18,
@@ -733,8 +784,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.muted,
     textAlign: 'center',
-    marginTop: SPACING.md,
+    marginTop: SPACING.sm,
     lineHeight: 16,
+  },
+  // Floating bottom bar
+  floatingBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  floatingBarGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: -32,
+    height: 32,
+  },
+  floatingBarContent: {
+    backgroundColor: COLORS.background,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    maxWidth: 680,
+    alignSelf: 'center',
+    width: '100%',
   },
   // ── Signature pad (Phase 2) ──
   sigContainer: {
