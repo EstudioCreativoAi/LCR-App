@@ -58,9 +58,15 @@ export default function SignInScreen() {
           )
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log('[Auth] signInWithPassword starting…')
+        const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
+        })
+        console.log('[Auth] signInWithPassword returned', {
+          hasSession: !!data?.session,
+          hasUser: !!data?.user,
+          error: error?.message ?? null,
         })
 
         if (error) {
@@ -71,6 +77,14 @@ export default function SignInScreen() {
           }
           throw error
         }
+
+        if (!data.session) {
+          throw new Error(
+            'Sign-in succeeded but no session was returned. Please confirm your email or try again.'
+          )
+        }
+
+        console.log('[Auth] Sign-in successful, session active. Waiting for navigation…')
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'An error occurred'

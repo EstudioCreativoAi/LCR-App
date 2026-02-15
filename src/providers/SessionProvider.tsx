@@ -40,18 +40,28 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s)
-      if (s) {
-        fetchProfile(s.user.id)
-      } else {
+    supabase.auth
+      .getSession()
+      .then(({ data: { session: s } }) => {
+        setSession(s)
+        if (s) {
+          fetchProfile(s.user.id)
+        } else {
+          setIsLoading(false)
+        }
+      })
+      .catch((err) => {
+        console.error('getSession failed:', err)
         setIsLoading(false)
-      }
-    })
+      })
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, s) => {
+    } = supabase.auth.onAuthStateChange((event, s) => {
+      console.log('[Session] onAuthStateChange:', event, {
+        hasSession: !!s,
+        isDemo,
+      })
       if (!isDemo) {
         setSession(s)
         if (s) {
@@ -68,15 +78,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   async function fetchProfile(userId: string) {
     try {
-      const { data } = await supabase
+      console.log('[Session] fetchProfile for:', userId)
+      const { data, error } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', userId)
         .single()
 
-      if (data) setRole((data as any).role as UserRole)
+      if (error) {
+        console.error('[Session] fetchProfile query error:', error.message)
+      } else if (data) {
+        console.log('[Session] fetchProfile role:', (data as any).role)
+        setRole((data as any).role as UserRole)
+      }
     } catch (error) {
-      console.error('Error fetching profile:', error)
+      console.error('[Session] fetchProfile exception:', error)
     } finally {
       setIsLoading(false)
     }

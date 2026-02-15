@@ -19,13 +19,20 @@ function RootLayoutNav() {
   const router = useRouter()
 
   useEffect(() => {
+    console.log('[Nav] guard check:', {
+      isLoading,
+      hasSession: !!session,
+      segments,
+    })
     if (isLoading) return
 
     const inAuthGroup = segments[0] === '(auth)'
 
     if (!session && !inAuthGroup) {
+      console.log('[Nav] → redirecting to sign-in')
       router.replace('/(auth)/sign-in')
     } else if (session && inAuthGroup) {
+      console.log('[Nav] → redirecting to tabs')
       router.replace('/(tabs)')
     }
   }, [session, isLoading, segments])
