@@ -91,7 +91,7 @@ export interface UseRenterLeadsReturn {
   isLoading: boolean
   error: string | null
   refetch: () => Promise<void>
-  expressInterest: (propertyId: string, landlordId: string) => Promise<boolean>
+  expressInterest: (propertyId: string) => Promise<boolean>
 }
 
 export function useRenterLeads(renterId: string | null): UseRenterLeadsReturn {
@@ -129,8 +129,7 @@ export function useRenterLeads(renterId: string | null): UseRenterLeadsReturn {
   }, [fetchLeads])
 
   const expressInterest = useCallback(async (
-    propertyId: string,
-    landlordId: string
+    propertyId: string
   ): Promise<boolean> => {
     if (!renterId) return false
 
@@ -140,7 +139,7 @@ export function useRenterLeads(renterId: string | null): UseRenterLeadsReturn {
       return false
     }
 
-    const result = await leadService.createLead(propertyId, renterId, landlordId)
+    const result = await leadService.createLead(propertyId, renterId)
 
     if (!result.success) {
       setError(result.error ?? 'Failed to express interest')

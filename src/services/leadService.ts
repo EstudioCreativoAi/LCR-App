@@ -106,9 +106,7 @@ export async function fetchLeadsByRenter(
 
 export async function createLead(
   propertyId: string,
-  renterId: string,
-  landlordId: string,
-  agentId?: string
+  renterId: string
 ): Promise<LeadResult<Lead>> {
   try {
     const { data, error } = await supabase
@@ -116,10 +114,9 @@ export async function createLead(
       .insert({
         property_id: propertyId,
         renter_id: renterId,
-        landlord_id: landlordId,
-        agent_id: agentId || null,
-        status: 'new' as LeadStatus,
-      })
+        status: 'Interested',
+        message: null,
+      } as any)
       .select()
       .single()
 

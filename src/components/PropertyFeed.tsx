@@ -62,6 +62,19 @@ const PropertyCard = ({
         return
       }
 
+      // Check for existing lead to prevent duplicates
+      const { data: existing } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('property_id', item.id)
+        .eq('renter_id', user.id)
+        .maybeSingle()
+
+      if (existing) {
+        Alert.alert('Already Sent', 'You already expressed interest in this property.')
+        return
+      }
+
       const { error } = await supabase
         .from('leads')
         .insert({
@@ -71,11 +84,16 @@ const PropertyCard = ({
           message: 'I am interested in this property!',
         } as any)
 
-      if (error) throw error
+      if (error) {
+        console.error('[Lead] insert error:', error.message, error.details)
+        throw error
+      }
+
       Alert.alert('Success', 'Landlord has been notified! They will contact you soon.')
     } catch (error: any) {
-      console.error('Error sending lead:', error)
-      Alert.alert('Error', 'Failed to send interest. Please try again.')
+      const msg = error?.message || 'Unknown error'
+      console.error('[Lead] handleInterest failed:', msg)
+      Alert.alert('Error', msg)
     } finally {
       setSendingLead(false)
     }
