@@ -7,7 +7,13 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(git add:*)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(npx supabase:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebSearch",
+      "Bash(git diff:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)"
     ]
   },
   "enableAllProjectMcpServers": true,

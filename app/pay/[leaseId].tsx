@@ -13,6 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import { loadStripe } from '@stripe/stripe-js'
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { useSession } from '../../src/providers/SessionProvider'
 import { supabase } from '../../src/lib/supabase'
 import { createPaymentIntent, confirmPayment } from '../../src/services/paymentService'
@@ -21,9 +22,20 @@ import { COLORS, SPACING, FONTS } from '../../src/theme/theme'
 import CaboCelebration from '../../src/components/CaboCelebration'
 import type { Lease, Property, Profile } from '../../src/types/database'
 
-type Phase = 'summary' | 'processing' | 'celebration'
+type Phase = 'summary' | 'card_input' | 'processing' | 'celebration'
 
 const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
+const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY)
+
+const CARD_ELEMENT_STYLE = {
+  base: {
+    fontSize: '16px',
+    fontFamily: 'Poppins, sans-serif',
+    color: '#6D6763',
+    '::placeholder': { color: '#959BAA' },
+  },
+  invalid: { color: '#D55E46' },
+}
 
 const DEMO_LEASE = {
   id: 'demo-lease-1',
@@ -55,6 +67,97 @@ const DEMO_LANDLORD = {
   full_name: 'Carlos Rodriguez',
 }
 
+// ─── Card Form (mounted inside <Elements>) ──────────────
+// Uses useStripe/useElements hooks — must be a child of <Elements>.
+// clientSecret is NOT passed to <Elements options>; it's used only
+// inside confirmCardPayment so Stripe doesn't auto-confirm.
+
+function CardForm({
+  depositAmount,
+  paymentId,
+  clientSecret,
+  onSuccess,
+  onError,
+}: {
+  depositAmount: number
+  paymentId: string
+  clientSecret: string
+  onSuccess: () => void
+  onError: (msg: string) => void
+}) {
+  const stripe = useStripe()
+  const elements = useElements()
+  const [paying, setPaying] = useState(false)
+  const [cardReady, setCardReady] = useState(false)
+
+  const handleConfirmPayment = async () => {
+    if (!stripe || !elements) return
+
+    const cardElement = elements.getElement(CardElement)
+    if (!cardElement) {
+      onError('Card input not found. Please refresh and try again.')
+      return
+    }
+
+    setPaying(true)
+
+    try {
+      const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: { card: cardElement },
+      })
+
+      if (error) {
+        console.error('[Stripe] confirmCardPayment error:', error.message)
+        onError(error.message || 'Payment failed')
+        return
+      }
+
+      if (paymentIntent?.status === 'succeeded') {
+        await confirmPayment(paymentId, paymentIntent.id)
+        onSuccess()
+      } else {
+        onError(`Unexpected payment status: ${paymentIntent?.status}`)
+      }
+    } catch (e: any) {
+      console.error('[Payment] error:', e)
+      onError(e.message || 'Failed to process payment')
+    } finally {
+      setPaying(false)
+    }
+  }
+
+  return (
+    <View style={styles.cardFormContainer}>
+      <Text style={styles.cardFormTitle}>Enter Card Details</Text>
+      <View style={styles.cardElementWrapper}>
+        <CardElement
+          options={{ style: CARD_ELEMENT_STYLE, hidePostalCode: true }}
+          onChange={(e) => setCardReady(e.complete)}
+        />
+      </View>
+      <TouchableOpacity
+        style={[styles.payButton, (!cardReady || paying) && styles.payButtonDisabled]}
+        onPress={handleConfirmPayment}
+        disabled={!cardReady || paying}
+        activeOpacity={0.8}
+      >
+        {paying ? (
+          <ActivityIndicator color={COLORS.white} />
+        ) : (
+          <Text style={styles.payButtonText}>
+            Confirm Payment — {formatPrice(depositAmount)}
+          </Text>
+        )}
+      </TouchableOpacity>
+      <View style={styles.stripeBadge}>
+        <Text style={styles.stripeBadgeText}>Secured by Stripe</Text>
+      </View>
+    </View>
+  )
+}
+
+// ─── Main Screen ────────────────────────────────────────
+
 export default function PaymentScreen() {
   const { leaseId } = useLocalSearchParams<{ leaseId: string }>()
   const { session, isDemo } = useSession()
@@ -65,8 +168,12 @@ export default function PaymentScreen() {
   const [property, setProperty] = useState<Partial<Property> | null>(null)
   const [landlord, setLandlord] = useState<Partial<Profile> | null>(null)
   const [loading, setLoading] = useState(true)
-  const [paying, setPaying] = useState(false)
   const [firstName, setFirstName] = useState('')
+
+  // Stripe intent data — populated when user clicks "Pay Deposit",
+  // consumed by CardForm's "Confirm Payment" button only.
+  const [clientSecret, setClientSecret] = useState<string | null>(null)
+  const [paymentId, setPaymentId] = useState<string | null>(null)
 
   const fetchLeaseData = useCallback(async () => {
     try {
@@ -128,58 +235,39 @@ export default function PaymentScreen() {
     fetchLeaseData()
   }, [fetchLeaseData])
 
+  const [intentLoading, setIntentLoading] = useState(false)
+
   const handlePayDeposit = async () => {
     if (!lease || !session) return
 
-    setPaying(true)
+    if (isDemo) {
+      setPhase('processing')
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      setPhase('celebration')
+      return
+    }
 
     try {
-      if (isDemo) {
-        await new Promise(resolve => setTimeout(resolve, 2000))
-        setPhase('celebration')
-        setPaying(false)
-        return
-      }
-
-      setPhase('processing')
-
-      // 1. Create payment intent via Edge Function
-      const { clientSecret, paymentId } = await createPaymentIntent(lease.id, session.user.id)
-
-      // 2. Load Stripe.js and confirm payment
-      const stripe = await loadStripe(STRIPE_PUBLISHABLE_KEY)
-      if (!stripe) throw new Error('Failed to load Stripe')
-
-      const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card: {
-            // Stripe.js will render its own secure card input in the redirect
-            // For web, we use redirect-based confirmation
-            token: undefined as any,
-          },
-        },
-        return_url: `${window.location.origin}/pay/${leaseId}?status=success`,
-      })
-
-      if (stripeError) {
-        if (stripeError.type === 'card_error' || stripeError.type === 'validation_error') {
-          throw new Error(stripeError.message || 'Card error')
-        }
-        throw new Error(stripeError.message || 'Payment failed')
-      }
-
-      if (paymentIntent?.status === 'succeeded') {
-        // 3. Confirm payment via Edge Function
-        await confirmPayment(paymentId, paymentIntent.id)
-        setPhase('celebration')
-      }
+      setIntentLoading(true)
+      const result = await createPaymentIntent(lease.id, session.user.id)
+      setClientSecret(result.clientSecret)
+      setPaymentId(result.paymentId)
+      setPhase('card_input')
     } catch (error: any) {
-      console.error('Payment error:', error)
+      console.error('Payment intent error:', error)
       Alert.alert('Payment Failed', error.message || 'Something went wrong. Please try again.')
-      setPhase('summary')
     } finally {
-      setPaying(false)
+      setIntentLoading(false)
     }
+  }
+
+  const handlePaymentSuccess = () => {
+    setPhase('celebration')
+  }
+
+  const handlePaymentError = (msg: string) => {
+    Alert.alert('Payment Failed', msg)
+    setPhase('card_input') // stay on card form so user can retry
   }
 
   const handleDismissCelebration = () => {
@@ -214,7 +302,10 @@ export default function PaymentScreen() {
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => phase === 'card_input' ? setPhase('summary') : router.back()}
+        >
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
 
@@ -258,26 +349,43 @@ export default function PaymentScreen() {
           </View>
         </View>
 
-        {/* Pay Button */}
-        <TouchableOpacity
-          style={[styles.payButton, paying && styles.payButtonDisabled]}
-          onPress={handlePayDeposit}
-          disabled={paying}
-          activeOpacity={0.8}
-        >
-          {paying ? (
-            <ActivityIndicator color={COLORS.white} />
-          ) : (
-            <Text style={styles.payButtonText}>
-              Pay Deposit — {formatPrice(depositAmount)}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {/* Phase: Summary → show Pay button */}
+        {phase === 'summary' && (
+          <>
+            <TouchableOpacity
+              style={[styles.payButton, intentLoading && styles.payButtonDisabled]}
+              onPress={handlePayDeposit}
+              disabled={intentLoading}
+              activeOpacity={0.8}
+            >
+              {intentLoading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <Text style={styles.payButtonText}>
+                  Pay Deposit — {formatPrice(depositAmount)}
+                </Text>
+              )}
+            </TouchableOpacity>
+            <View style={styles.stripeBadge}>
+              <Text style={styles.stripeBadgeText}>Secured by Stripe</Text>
+            </View>
+          </>
+        )}
 
-        {/* Stripe Badge */}
-        <View style={styles.stripeBadge}>
-          <Text style={styles.stripeBadgeText}>🔒 Secured by Stripe</Text>
-        </View>
+        {/* Phase: Card Input → show Stripe CardElement, then Confirm button */}
+        {phase === 'card_input' && clientSecret && paymentId && (
+          <View style={{ marginHorizontal: SPACING.lg, marginTop: SPACING.xl }}>
+            <Elements stripe={stripePromise}>
+              <CardForm
+                depositAmount={depositAmount}
+                paymentId={paymentId}
+                clientSecret={clientSecret}
+                onSuccess={handlePaymentSuccess}
+                onError={handlePaymentError}
+              />
+            </Elements>
+          </View>
+        )}
       </ScrollView>
 
       {/* Processing Overlay */}
@@ -386,6 +494,25 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.text,
   },
+  // ── Card form ──
+  cardFormContainer: {
+    marginTop: SPACING.sm,
+  },
+  cardFormTitle: {
+    fontFamily: FONTS.bold,
+    fontSize: 16,
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  cardElementWrapper: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.secondary,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  // ── Buttons ──
   payButton: {
     backgroundColor: COLORS.primary,
     marginHorizontal: SPACING.lg,
@@ -401,7 +528,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   payButtonDisabled: {
-    opacity: 0.7,
+    opacity: 0.5,
   },
   payButtonText: {
     fontFamily: FONTS.bold,

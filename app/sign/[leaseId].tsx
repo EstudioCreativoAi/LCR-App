@@ -8,8 +8,9 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { LinearGradient } from 'expo-linear-gradient'
 import SignatureCanvas from 'react-signature-canvas'
@@ -42,7 +43,7 @@ const PARCHMENT = '#F5F0E8'
 const PARCHMENT_DARK = '#E8E0D0'
 const SEAL_RED = '#8B0000'
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+// Dimensions are now read reactively inside components via useWindowDimensions()
 
 const DEMO_LEASE_DATA = {
   id: 'demo-lease-1',
@@ -116,6 +117,115 @@ function ProcessingScreen({ text }: { text: string }) {
           <Animated.View style={[styles.dot, dot3]} />
         </View>
       </View>
+    </View>
+  )
+}
+
+function SigningPhase({
+  sigCanvasRef,
+  renterName,
+  onBack,
+  onCancel,
+  onClear,
+  onDone,
+}: {
+  sigCanvasRef: React.RefObject<SignatureCanvas>
+  renterName: string
+  onBack: () => void
+  onCancel: () => void
+  onClear: () => void
+  onDone: () => void
+}) {
+  const { width: winW, height: winH } = useWindowDimensions()
+  const isSmallScreen = winW < 768
+  const longSide = Math.max(winW, winH)
+  const shortSide = Math.min(winW, winH)
+  const canvasWidth = isSmallScreen ? longSide - 48 : Math.min(winW - 80, 900)
+  const canvasHeight = isSmallScreen ? shortSide - 140 : 420
+
+  return (
+    <View style={styles.sigContainer}>
+      <SafeAreaView style={[
+        styles.sigInner,
+        isSmallScreen && {
+          transform: [{ rotate: '90deg' }],
+          width: winH,
+          height: winW,
+        },
+      ]}>
+        {/* Header bar */}
+        <View style={styles.sigHeader}>
+          <View style={styles.sigHeaderLeft}>
+            <TouchableOpacity onPress={onCancel} style={styles.sigCancelBtn}>
+              <Text style={styles.sigCancelText}>✕</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onBack}>
+              <Text style={styles.sigBackText}>← Back</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.sigTitle}>Your Signature</Text>
+          <View style={styles.sigActions}>
+            <TouchableOpacity style={styles.sigClearBtn} onPress={onClear}>
+              <Text style={styles.sigClearText}>Clear</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sigDoneBtn} onPress={onDone}>
+              <Text style={styles.sigDoneText}>Complete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Parchment signature area */}
+        <View style={styles.parchmentFrame}>
+          <View style={styles.parchmentRule} />
+
+          <Text style={styles.parchmentLabel}>
+            I, {renterName}, hereby sign this lease agreement
+          </Text>
+
+          <View style={styles.sigCanvasOuter}>
+            <SignatureCanvas
+              ref={sigCanvasRef}
+              penColor={INK_BLUE}
+              minWidth={1.5}
+              maxWidth={3.5}
+              velocityFilterWeight={0.7}
+              canvasProps={{
+                width: canvasWidth,
+                height: canvasHeight,
+                style: {
+                  backgroundColor: PARCHMENT,
+                  borderRadius: 8,
+                  border: `1px solid ${PARCHMENT_DARK}`,
+                  boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.06)',
+                  backgroundImage: `
+                    repeating-linear-gradient(
+                      0deg,
+                      transparent,
+                      transparent 31px,
+                      ${PARCHMENT_DARK} 31px,
+                      ${PARCHMENT_DARK} 32px
+                    )
+                  `,
+                  backgroundPosition: '0 24px',
+                },
+              }}
+            />
+          </View>
+
+          <View style={styles.signatureXRow}>
+            <Text style={styles.signatureX}>X</Text>
+            <View style={styles.signatureBaseline} />
+          </View>
+
+          <View style={styles.parchmentRule} />
+        </View>
+
+        {/* Ink color indicator */}
+        <View style={styles.inkIndicator}>
+          <View style={[styles.inkDot, { backgroundColor: INK_BLUE }]} />
+          <Text style={styles.inkLabel}>Ink Blue</Text>
+        </View>
+      </SafeAreaView>
     </View>
   )
 }
@@ -296,94 +406,14 @@ export default function SignLeaseScreen() {
 
   // Phase 2: Signature pad — full-screen landscape parchment
   if (phase === 'signing') {
-    const isSmallScreen = SCREEN_WIDTH < 768
-    const canvasWidth = isSmallScreen ? Math.max(SCREEN_WIDTH, SCREEN_HEIGHT) - 48 : Math.min(SCREEN_WIDTH - 80, 900)
-    const canvasHeight = isSmallScreen ? Math.min(SCREEN_WIDTH, SCREEN_HEIGHT) - 140 : 420
-
-    return (
-      <View style={styles.sigContainer}>
-        <View style={[
-          styles.sigInner,
-          isSmallScreen && {
-            transform: [{ rotate: '90deg' }],
-            width: SCREEN_HEIGHT,
-            height: SCREEN_WIDTH,
-          },
-        ]}>
-          {/* Header bar */}
-          <View style={styles.sigHeader}>
-            <TouchableOpacity onPress={() => setPhase('preview')}>
-              <Text style={styles.sigBackText}>← Back</Text>
-            </TouchableOpacity>
-            <Text style={styles.sigTitle}>Your Signature</Text>
-            <View style={styles.sigActions}>
-              <TouchableOpacity style={styles.sigClearBtn} onPress={handleClearSignature}>
-                <Text style={styles.sigClearText}>Clear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.sigDoneBtn} onPress={handleDoneSignature}>
-                <Text style={styles.sigDoneText}>Complete</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Parchment signature area */}
-          <View style={styles.parchmentFrame}>
-            {/* Decorative top rule */}
-            <View style={styles.parchmentRule} />
-
-            <Text style={styles.parchmentLabel}>
-              I, {renterName}, hereby sign this lease agreement
-            </Text>
-
-            {/* Canvas with paper texture */}
-            <View style={styles.sigCanvasOuter}>
-              <SignatureCanvas
-                ref={sigCanvasRef}
-                penColor={INK_BLUE}
-                minWidth={1.5}
-                maxWidth={3.5}
-                velocityFilterWeight={0.7}
-                canvasProps={{
-                  width: canvasWidth,
-                  height: canvasHeight,
-                  style: {
-                    backgroundColor: PARCHMENT,
-                    borderRadius: 8,
-                    border: `1px solid ${PARCHMENT_DARK}`,
-                    boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.06)',
-                    backgroundImage: `
-                      repeating-linear-gradient(
-                        0deg,
-                        transparent,
-                        transparent 31px,
-                        ${PARCHMENT_DARK} 31px,
-                        ${PARCHMENT_DARK} 32px
-                      )
-                    `,
-                    backgroundPosition: '0 24px',
-                  },
-                }}
-              />
-            </View>
-
-            {/* Bottom rule with X mark */}
-            <View style={styles.signatureXRow}>
-              <Text style={styles.signatureX}>X</Text>
-              <View style={styles.signatureBaseline} />
-            </View>
-
-            {/* Decorative bottom rule */}
-            <View style={styles.parchmentRule} />
-          </View>
-
-          {/* Ink color indicator */}
-          <View style={styles.inkIndicator}>
-            <View style={[styles.inkDot, { backgroundColor: INK_BLUE }]} />
-            <Text style={styles.inkLabel}>Ink Blue</Text>
-          </View>
-        </View>
-      </View>
-    )
+    return <SigningPhase
+      sigCanvasRef={sigCanvasRef}
+      renterName={renterName}
+      onBack={() => setPhase('preview')}
+      onCancel={() => router.back()}
+      onClear={handleClearSignature}
+      onDone={handleDoneSignature}
+    />
   }
 
   // Phase 1: Lease preview with document-style design
@@ -726,6 +756,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     marginBottom: 16,
+  },
+  sigHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sigCancelBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sigCancelText: {
+    fontSize: 16,
+    color: COLORS.white,
+    fontWeight: 'bold',
   },
   sigBackText: {
     fontFamily: FONTS.semiBold,

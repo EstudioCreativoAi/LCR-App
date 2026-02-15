@@ -5,14 +5,42 @@ export async function createPaymentIntent(leaseId: string, payerId: string): Pro
   clientSecret: string
   paymentId: string
 }> {
-  const { data, error } = await supabase.functions.invoke('create-payment-intent', {
-    body: { lease_id: leaseId, payer_id: payerId },
+  // Get fresh session token to avoid stale JWT 401s
+  const { data: { session } } = await supabase.auth.getSession()
+  console.log('[Payment] createPaymentIntent:', {
+    leaseId,
+    payerId,
+    hasSession: !!session,
+    tokenPrefix: session?.access_token?.substring(0, 20) || 'NONE',
   })
 
-  if (error) throw new Error(error.message || 'Failed to create payment intent')
-  if (!data?.clientSecret) throw new Error('No client secret returned')
+  const { data, error } = await supabase.functions.invoke('create-payment-intent', {
+    body: { lease_id: leaseId, payer_id: payerId },
+    headers: session?.access_token
+      ? { Authorization: `Bearer ${session.access_token}` }
+      : undefined,
+  })
 
-  return { clientSecret: data.clientSecret, paymentId: data.paymentId }
+  console.log('[Payment] invoke result:', { data, error, dataType: typeof data })
+
+  if (error) {
+    console.error('[Payment] Edge Function error:', error)
+    throw new Error(error.message || 'Failed to create payment intent')
+  }
+
+  // Handle case where SDK returns stringified JSON instead of parsed object
+  const parsed = typeof data === 'string' ? JSON.parse(data) : data
+
+  if (parsed?.error) {
+    console.error('[Payment] Function returned error:', parsed.error)
+    throw new Error(parsed.error)
+  }
+  if (!parsed?.clientSecret) {
+    console.error('[Payment] No clientSecret in response. Keys:', Object.keys(parsed || {}))
+    throw new Error('No client secret returned')
+  }
+
+  return { clientSecret: parsed.clientSecret, paymentId: parsed.paymentId }
 }
 
 export async function confirmPayment(paymentId: string, paymentIntentId: string): Promise<{
