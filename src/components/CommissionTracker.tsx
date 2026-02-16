@@ -174,7 +174,7 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
         {/* Summary Card */}
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>Total Earned Commissions</Text>
-          <Text style={styles.summaryAmount}>{formatPrice(totalEarned)}</Text>
+          <Text style={styles.summaryAmount} numberOfLines={1} adjustsFontSizeToFit={true}>{formatPrice(totalEarned)}</Text>
           <View style={styles.summaryFooter}>
             <View style={styles.footerItem}>
               <Text style={styles.footerLabel}>Filtered by</Text>
@@ -267,7 +267,7 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.muted,
+    backgroundColor: COLORS.background,
     width: '100%',
     maxWidth: MAX_CONTENT_WIDTH,
     alignSelf: 'center',
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   },
   summaryAmount: {
     color: COLORS.white,
-    fontSize: 36,
+    fontSize: 30,
     fontFamily: FONTS.bold,
     marginBottom: SPACING.lg,
     letterSpacing: -1,
@@ -339,6 +339,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
     borderWidth: 1,
     borderColor: COLORS.background,
+    overflow: 'hidden',
   },
   chartArea: {
     width: '100%',
@@ -355,6 +356,7 @@ const styles = StyleSheet.create({
   },
   chartBar: {
     width: '100%',
+    maxWidth: 40,
     borderRadius: 10,
     backgroundColor: COLORS.primary,
   },

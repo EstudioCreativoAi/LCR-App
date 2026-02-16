@@ -85,6 +85,20 @@ export default function SignInScreen() {
         }
 
         console.log('[Auth] Sign-in successful, session active. Waiting for navigation…')
+
+        // Update role if user selected a different one
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .single()
+
+        if (profile && profile.role !== role) {
+          await supabase
+            .from('profiles')
+            .update({ role, updated_at: new Date().toISOString() })
+            .eq('id', data.user.id)
+        }
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'An error occurred'
@@ -124,7 +138,7 @@ export default function SignInScreen() {
 
         <View style={styles.roleContainer}>
           <Text style={styles.roleLabel}>
-            {isSignUp ? 'I am a:' : 'Demo as:'}
+            {isSignUp ? 'I am a:' : 'Sign in as:'}
           </Text>
           <View style={styles.roleSelector}>
             {(['renter', 'landlord', 'agent'] as UserRole[]).map((r) => (

@@ -4,7 +4,7 @@ import { useSession } from '../src/providers/SessionProvider'
 
 export default function NotificationsModal() {
   const router = useRouter()
-  const { session } = useSession()
+  const { session, role } = useSession()
 
   if (!session) return null
 
@@ -14,12 +14,12 @@ export default function NotificationsModal() {
       <NotificationCenter
         userId={session.user.id}
         onClose={() => router.back()}
-        onAction={(type) => {
+        onAction={(type, metadata) => {
           router.back()
           if (type === 'new_message' || type === 'lead_update') {
             router.push('/(tabs)/leads')
           } else if (type === 'lease_signed') {
-            router.push('/(tabs)/commissions')
+            router.push('/(tabs)/leases')
           }
         }}
       />

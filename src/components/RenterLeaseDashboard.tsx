@@ -115,20 +115,45 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
     router.push(`/sign/${leaseId}`)
   }
 
-  const handleViewLease = (documentUrl?: string | null) => {
-    if (documentUrl) {
+  const handleViewLease = (lease: any) => {
+    if (lease.document_url) {
       if (Platform.OS === 'web') {
-        window.open(documentUrl, '_blank')
+        window.open(lease.document_url, '_blank')
       } else {
-        Linking.openURL(documentUrl)
+        Linking.openURL(lease.document_url)
       }
+    } else if (lease.status === 'sent_for_signature' || lease.status === 'pending') {
+      router.push(`/sign/${lease.id}`)
     } else {
-      Alert.alert('No Document', 'The signed lease document is not available yet.')
+      Alert.alert('Document Unavailable', 'The lease document is being prepared and will be available soon.')
     }
   }
 
-  const handleContactLandlord = () => {
-    Alert.alert('Coming Soon', 'Messaging will be available in a future update.')
+  const handleContactLandlord = async (lease: any) => {
+    try {
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('property_id', lease.property_id)
+        .eq('renter_id', session.user.id)
+        .maybeSingle()
+
+      if (lead) {
+        Alert.alert(
+          'Contact Landlord',
+          'You can message your landlord through the property listing.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Go to Listing', onPress: () => router.push(`/listing/${lease.property_id}`) }
+          ]
+        )
+      } else {
+        Alert.alert('No Chat Available', 'No active conversation found for this lease. Please try reaching out through the property listing.')
+      }
+    } catch (err) {
+      console.error('Error finding lead:', err)
+      Alert.alert('Error', 'Unable to find conversation. Please try again.')
+    }
   }
 
   const renderLeaseCard = (lease: any) => {
@@ -170,7 +195,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
           style={styles.card}
           onPress={() => needsSignature
             ? handleSignLease(lease.id)
-            : handleViewLease(lease.document_url)
+            : handleViewLease(lease)
           }
           activeOpacity={0.8}
         >
@@ -244,7 +269,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
         <View style={styles.actionRow}>
           <TouchableOpacity
             style={styles.smallCard}
-            onPress={() => handleViewLease(lease.document_url)}
+            onPress={() => handleViewLease(lease)}
           >
             {hasSigned
               ? <FileText size={24} color={COLORS.primary} strokeWidth={2} style={{ marginBottom: 8 }} />
@@ -252,7 +277,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
             }
             <Text style={styles.actionText}>{hasSigned ? 'View Signed Lease' : 'View Lease'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.smallCard} onPress={handleContactLandlord}>
+          <TouchableOpacity style={styles.smallCard} onPress={() => handleContactLandlord(lease)}>
             <MessageCircle size={24} color={COLORS.primary} strokeWidth={2} style={{ marginBottom: 8 }} />
             <Text style={styles.actionText}>Contact Landlord</Text>
           </TouchableOpacity>
