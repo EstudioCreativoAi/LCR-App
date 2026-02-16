@@ -746,7 +746,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
   },
   signButtonGradient: {
-    height: 58,
+    minHeight: 58,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
@@ -754,8 +756,9 @@ const styles = StyleSheet.create({
   },
   signButtonText: {
     fontFamily: FONTS.bold,
-    fontSize: 18,
+    fontSize: 17,
     color: COLORS.white,
+    textAlign: 'center',
   },
   legalNote: {
     fontFamily: FONTS.regular,

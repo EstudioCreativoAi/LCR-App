@@ -5,6 +5,7 @@ import {
   Modal,
   StyleSheet,
   TouchableOpacity,
+  ScrollView,
   Platform,
   Pressable,
 } from 'react-native'
@@ -96,6 +97,7 @@ export default function SearchFilterModal({
             </TouchableOpacity>
           </View>
 
+          <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
           {/* Price Range Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Price Range (MXN)</Text>
@@ -232,6 +234,8 @@ export default function SearchFilterModal({
               </TouchableOpacity>
             )}
           </View>
+
+          </ScrollView>
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>

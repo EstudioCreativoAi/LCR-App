@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase'
 import { Session } from '@supabase/supabase-js'
 import { fetchDepositPayment } from '../services/paymentService'
 import ReviewSystem from './ReviewSystem'
+import ChatThread from './ChatThread'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formatPrice } from '../utils/currency'
 import { MapPin, PenLine, Check, FileText, FilePen, MessageCircle, Star, Building } from 'lucide-react-native'
@@ -38,6 +39,7 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
   const [refreshing, setRefreshing] = useState(false)
   const [showRatingModal, setShowRatingModal] = useState<{ propertyId: string; leaseId: string } | null>(null)
   const [depositPaidMap, setDepositPaidMap] = useState<Record<string, boolean>>({})
+  const [activeChatLeadId, setActiveChatLeadId] = useState<string | null>(null)
 
   const fetchLeases = useCallback(async () => {
     try {
@@ -139,20 +141,13 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
         .maybeSingle()
 
       if (lead) {
-        Alert.alert(
-          'Contact Landlord',
-          'You can message your landlord through the property listing.',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Go to Listing', onPress: () => router.push(`/listing/${lease.property_id}`) }
-          ]
-        )
+        setActiveChatLeadId(lead.id)
       } else {
-        Alert.alert('No Chat Available', 'No active conversation found for this lease. Please try reaching out through the property listing.')
+        Alert.alert('No Chat Available', 'No active conversation found for this lease.')
       }
     } catch (err) {
       console.error('Error finding lead:', err)
-      Alert.alert('Error', 'Unable to find conversation. Please try again.')
+      Alert.alert('Error', 'Unable to open chat. Please try again.')
     }
   }
 
@@ -329,6 +324,18 @@ export default function RenterLeaseDashboard({ session, isDemo }: RenterLeaseDas
               category="property"
               onSubmitSuccess={() => setShowRatingModal(null)}
               onCancel={() => setShowRatingModal(null)}
+            />
+          </View>
+        </View>
+      )}
+
+      {activeChatLeadId && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.chatModalContent}>
+            <ChatThread
+              leadId={activeChatLeadId}
+              currentUserId={session.user.id}
+              onClose={() => setActiveChatLeadId(null)}
             />
           </View>
         </View>
@@ -556,5 +563,14 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
+  },
+  chatModalContent: {
+    width: '100%',
+    maxWidth: 500,
+    height: '80%',
+    alignSelf: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
 })

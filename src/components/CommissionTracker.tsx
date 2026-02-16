@@ -76,7 +76,6 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState(0) // 0 = All Time
-  const [chartHeight, setChartHeight] = useState(0)
 
   const fetchCommissions = useCallback(async () => {
     try {
@@ -190,23 +189,22 @@ export default function CommissionTracker({ isDemo }: { isDemo?: boolean }) {
         {/* Commission Tracker Chart */}
         <Text style={styles.sectionTitle}>Commission Tracker</Text>
         <View style={styles.chartCard}>
-          <View
-            style={styles.chartArea}
-            onLayout={(e) => setChartHeight(e.nativeEvent.layout.height)}
-          >
+          <View style={styles.chartArea}>
             {chartSeries.data.map((d) => {
-              const height = chartHeight > 0 ? Math.max(4, (d.value / chartSeries.maxValue) * chartHeight) : 4
+              const pct = chartSeries.maxValue > 0 ? (d.value / chartSeries.maxValue) * 100 : 0
               const isZero = d.value <= 0
 
               return (
                 <View key={d.label} style={styles.chartBarColumn}>
-                  <View
-                    style={[
-                      styles.chartBar,
-                      { height },
-                      isZero && styles.chartBarZero,
-                    ]}
-                  />
+                  <View style={styles.chartBarTrack}>
+                    <View
+                      style={[
+                        styles.chartBar,
+                        { height: isZero ? '2%' : `${Math.max(3, pct)}%` },
+                        isZero && styles.chartBarZero,
+                      ]}
+                    />
+                  </View>
                   <Text style={styles.chartLabel}>{d.label}</Text>
                 </View>
               )
@@ -345,19 +343,24 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 16 / 9,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 10,
+    paddingHorizontal: 8,
   },
   chartBarColumn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    gap: 6,
+    paddingHorizontal: 4,
+  },
+  chartBarTrack: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   chartBar: {
-    width: '100%',
-    maxWidth: 40,
-    borderRadius: 10,
+    width: 24,
+    maxWidth: '80%',
+    borderRadius: 8,
     backgroundColor: COLORS.primary,
   },
   chartBarZero: {
