@@ -22,7 +22,9 @@ import PropertyDetail from './PropertyDetail'
 import ReviewSystem from './ReviewSystem'
 import { Session } from '@supabase/supabase-js'
 import { formatPrice } from '../utils/currency'
-import { BedDouble, ShowerHead, Star, Search as SearchIcon, X, SlidersHorizontal, Home } from 'lucide-react-native'
+import { BedDouble, ShowerHead, Star, Search as SearchIcon, X, SlidersHorizontal, Home, Heart } from 'lucide-react-native'
+import { useSavedProperties } from '../hooks/useSavedProperties'
+import { useSession } from '../providers/SessionProvider'
 
 interface Property extends DBProperty {
   avg_rating?: number
@@ -34,16 +36,20 @@ const MAX_CONTENT_WIDTH = 800
 const IS_WEB = Platform.OS === 'web'
 const CARD_WIDTH = IS_WEB ? Math.min(WINDOW_WIDTH - 32, MAX_CONTENT_WIDTH) : WINDOW_WIDTH - 32
 
-const PropertyCard = ({ 
-  item, 
-  role, 
-  isDemo, 
-  onOpenDetail 
-}: { 
-  item: Property; 
-  role?: UserRole; 
+const PropertyCard = ({
+  item,
+  role,
+  isDemo,
+  onOpenDetail,
+  onToggleSave,
+  isSaved,
+}: {
+  item: Property;
+  role?: UserRole;
   isDemo?: boolean;
-  onOpenDetail: (p: Property) => void
+  onOpenDetail: (p: Property) => void;
+  onToggleSave?: (propertyId: string) => void;
+  isSaved?: boolean;
 }) => {
   const { t } = useTranslation()
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0)
@@ -146,6 +152,20 @@ const PropertyCard = ({
             ))}
           </View>
         )}
+        {role === 'renter' && onToggleSave && (
+          <TouchableOpacity
+            style={styles.heartButton}
+            onPress={() => onToggleSave(item.id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Heart
+              size={18}
+              color={isSaved ? COLORS.primary : COLORS.muted}
+              fill={isSaved ? COLORS.primary : 'none'}
+              strokeWidth={2}
+            />
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.cardContent}>
@@ -210,6 +230,8 @@ interface PropertyFeedProps {
 
 export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
   const { t } = useTranslation()
+  const { session } = useSession()
+  const { toggleSave, isPropertySaved } = useSavedProperties(session?.user?.id ?? null)
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -424,11 +446,13 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
           <FlatList
             data={properties}
             renderItem={({ item }) => (
-              <PropertyCard 
-                item={item} 
-                role={role} 
-                isDemo={isDemo} 
-                onOpenDetail={(p) => setSelectedProperty(p)} 
+              <PropertyCard
+                item={item}
+                role={role}
+                isDemo={isDemo}
+                onOpenDetail={(p) => setSelectedProperty(p)}
+                onToggleSave={(id) => toggleSave(id)}
+                isSaved={isPropertySaved(item.id)}
               />
             )}
             keyExtractor={(item) => item.id}
@@ -537,7 +561,19 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     marginBottom: SPACING.sm,
   },
-  photoCarousel: { width: '100%', height: 280, backgroundColor: COLORS.cardBackground },
+  photoCarousel: { width: '100%', height: 280, backgroundColor: COLORS.cardBackground, position: 'relative' as const },
+  heartButton: {
+    position: 'absolute' as const,
+    top: 8,
+    right: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    zIndex: 10,
+  },
   photo: { width: CARD_WIDTH, height: 280 },
   indicatorContainer: {
     position: 'absolute',

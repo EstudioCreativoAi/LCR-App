@@ -29,7 +29,10 @@ import {
   Star,
   Home,
   Calendar,
+  Heart,
 } from 'lucide-react-native'
+import { useSavedProperties } from '../../src/hooks/useSavedProperties'
+import { useSession } from '../../src/providers/SessionProvider'
 
 interface PropertyWithRating extends DBProperty {
   avg_rating?: number
@@ -77,6 +80,8 @@ function formatChipDate(date: Date): string {
 export default function SearchScreen() {
   const router = useRouter()
   const { t } = useTranslation()
+  const { session, role } = useSession()
+  const { toggleSave, isPropertySaved } = useSavedProperties(session?.user?.id ?? null)
   const [properties, setProperties] = useState<PropertyWithRating[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -267,6 +272,20 @@ export default function SearchScreen() {
                 />
               ))}
             </View>
+          )}
+          {role === 'renter' && (
+            <TouchableOpacity
+              style={styles.heartButton}
+              onPress={() => toggleSave(item.id)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Heart
+                size={18}
+                color={isPropertySaved(item.id) ? COLORS.primary : COLORS.muted}
+                fill={isPropertySaved(item.id) ? COLORS.primary : 'none'}
+                strokeWidth={2}
+              />
+            </TouchableOpacity>
           )}
         </View>
 
@@ -568,6 +587,19 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 280,
     backgroundColor: COLORS.cardBackground,
+    position: 'relative' as const,
+  },
+  heartButton: {
+    position: 'absolute' as const,
+    top: 8,
+    right: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+    zIndex: 10,
   },
   photo: {
     width: CARD_WIDTH,
