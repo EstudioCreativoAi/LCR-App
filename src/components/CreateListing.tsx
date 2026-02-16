@@ -16,7 +16,7 @@ import {
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../lib/supabase'
 import { processImageForUpload, uploadImageToStorage } from '../utils/images'
-import { PropertyInsert } from '../types/database'
+import type { Property, PropertyInsert } from '../types/database'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formStyles } from '../theme/forms'
 import { Camera, X } from 'lucide-react-native'
@@ -28,6 +28,7 @@ const IS_WEB = Platform.OS === 'web'
 interface CreateListingProps {
   onClose: () => void
   onSuccess: () => void
+  initialData?: Property
 }
 
 const AMENITIES_OPTIONS = [
@@ -37,27 +38,29 @@ const AMENITIES_OPTIONS = [
 
 const PROPERTY_TYPES = ['Apartment', 'House', 'Villa', 'Condo', 'Loft', 'Studio']
 
-export default function CreateListing({ onClose, onSuccess }: CreateListingProps) {
+export default function CreateListing({ onClose, onSuccess, initialData }: CreateListingProps) {
+  const isEditMode = Boolean(initialData)
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const fadeAnim = useRef(new Animated.Value(1)).current
 
   // Form State
   const [formData, setFormData] = useState<Partial<PropertyInsert>>({
-    address: '',
-    city: '',
-    property_type: 'Apartment',
-    bedrooms: 1,
-    bathrooms: 1,
-    monthly_rent_mxn: 0,
-    description: '',
-    house_rules: '',
-    amenities: [],
+    address: initialData?.address ?? '',
+    city: initialData?.city ?? '',
+    property_type: initialData?.property_type ?? 'Apartment',
+    bedrooms: initialData?.bedrooms ?? 1,
+    bathrooms: initialData?.bathrooms ?? 1,
+    monthly_rent_mxn: initialData?.monthly_rent_mxn ?? 0,
+    description: initialData?.description ?? '',
+    house_rules: initialData?.house_rules ?? '',
+    amenities: initialData?.amenities ?? [],
     photos: [],
-    status: 'active',
+    status: initialData?.status ?? 'active',
   })
 
   const [selectedImages, setSelectedImages] = useState<ImagePicker.ImagePickerAsset[]>([])
+  const [existingPhotos, setExistingPhotos] = useState<string[]>(initialData?.photos ?? [])
   const [focusedInput, setFocusedInput] = useState<string | null>(null)
 
   const inputStyle = (id: string) => [
@@ -90,7 +93,7 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
     })
 
     if (!result.canceled) {
-      if (result.assets.length < 5) {
+      if (!isEditMode && result.assets.length < 5) {
         Alert.alert('Selection Too Small', 'Please select at least 5 images (max 10).')
         return
       }
@@ -126,48 +129,85 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
     });
   }
 
+  const removeExistingPhoto = (url: string) => {
+    setExistingPhotos((prev) => prev.filter((p) => p !== url))
+  }
+
   const handleSubmit = async () => {
-    if (selectedImages.length < 5) {
+    const totalPhotos = existingPhotos.length + selectedImages.length
+    if (!isEditMode && selectedImages.length < 5) {
       Alert.alert('Required', 'Please upload 5-10 photos.')
+      return
+    }
+    if (isEditMode && totalPhotos < 1) {
+      Alert.alert('Required', 'Please keep at least 1 photo.')
       return
     }
 
     try {
       setLoading(true)
-      
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('User not found')
 
-      const propertyId = generateUUID()
+      const propertyId = isEditMode ? initialData!.id : generateUUID()
 
-      // 1. Upload images
-      const imageUrls = await uploadImages(user.id, propertyId)
+      // 1. Upload new images (if any)
+      const newImageUrls = selectedImages.length > 0
+        ? await uploadImages(user.id, propertyId)
+        : []
 
-      // 2. Insert record
-      const finalData: PropertyInsert = {
-        ...formData,
-        id: propertyId,
-        landlord_id: user.id,
-        photos: imageUrls,
-        address: formData.address || '',
-        city: formData.city || '',
-        property_type: formData.property_type || 'Apartment',
-        bedrooms: formData.bedrooms || 1,
-        bathrooms: formData.bathrooms || 1,
-        monthly_rent_mxn: formData.monthly_rent_mxn || 0,
-      } as PropertyInsert
+      const allPhotos = [...existingPhotos, ...newImageUrls]
 
-      const { error } = await supabase
-        .from('properties')
-        .insert(finalData as any)
+      if (isEditMode) {
+        // Update existing property
+        const { error } = await supabase
+          .from('properties')
+          .update({
+            address: formData.address || '',
+            city: formData.city || '',
+            property_type: formData.property_type || 'Apartment',
+            bedrooms: formData.bedrooms || 1,
+            bathrooms: formData.bathrooms || 1,
+            monthly_rent_mxn: formData.monthly_rent_mxn || 0,
+            description: formData.description || null,
+            house_rules: formData.house_rules || null,
+            amenities: formData.amenities || [],
+            photos: allPhotos,
+          } as any)
+          .eq('id', initialData!.id)
 
-      if (error) throw error
+        if (error) throw error
 
-      Alert.alert('Success', 'Property listed successfully!')
+        Alert.alert('Success', 'Property updated successfully!')
+      } else {
+        // Insert new property
+        const finalData: PropertyInsert = {
+          ...formData,
+          id: propertyId,
+          landlord_id: user.id,
+          photos: allPhotos,
+          address: formData.address || '',
+          city: formData.city || '',
+          property_type: formData.property_type || 'Apartment',
+          bedrooms: formData.bedrooms || 1,
+          bathrooms: formData.bathrooms || 1,
+          monthly_rent_mxn: formData.monthly_rent_mxn || 0,
+        } as PropertyInsert
+
+        const { error } = await supabase
+          .from('properties')
+          .insert(finalData as any)
+
+        if (error) throw error
+
+        Alert.alert('Success', 'Property listed successfully!')
+      }
+
       onSuccess()
     } catch (error: any) {
       console.error('Submit error:', error)
-      Alert.alert('Error', error.message || 'Failed to create listing')
+      Alert.alert('Error', error.message || (isEditMode ? 'Failed to update listing' : 'Failed to create listing'))
     } finally {
       setLoading(false)
     }
@@ -333,53 +373,83 @@ export default function CreateListing({ onClose, onSuccess }: CreateListingProps
     </View>
   )
 
-  const renderStep3 = () => (
-    <View style={styles.stepContainer}>
-      <Text style={styles.sectionTitle}>Property Photos</Text>
-      <Text style={formStyles.instructionalText}>
-        Upload 5-10 high-quality photos to attract renters.
-      </Text>
+  const renderStep3 = () => {
+    const totalPhotos = existingPhotos.length + selectedImages.length
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.sectionTitle}>Property Photos</Text>
+        <Text style={formStyles.instructionalText}>
+          {isEditMode
+            ? `${totalPhotos} photo${totalPhotos !== 1 ? 's' : ''} total. Add more or remove existing ones.`
+            : 'Upload 5-10 high-quality photos to attract renters.'}
+        </Text>
 
-      <TouchableOpacity style={styles.uploadBox} onPress={pickImages}>
-        <Camera size={32} color={COLORS.muted} strokeWidth={2} style={{ marginBottom: SPACING.sm }} />
-        <Text style={styles.uploadText}>{selectedImages.length > 0 ? `${selectedImages.length} Photos Selected` : 'Select Photos'}</Text>
-      </TouchableOpacity>
+        {existingPhotos.length > 0 && (
+          <>
+            <Text style={[formStyles.label, { marginTop: SPACING.sm }]}>Current Photos</Text>
+            <ScrollView horizontal style={styles.previewScroll} showsHorizontalScrollIndicator={false}>
+              {existingPhotos.map((url, i) => (
+                <View key={`existing-${i}`} style={styles.previewImageWrapper}>
+                  <Image source={{ uri: url }} style={styles.previewImage} />
+                  <TouchableOpacity
+                    style={styles.removePhotoButton}
+                    onPress={() => removeExistingPhoto(url)}
+                  >
+                    <X size={14} color={COLORS.white} strokeWidth={2} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          </>
+        )}
 
-      <ScrollView horizontal style={styles.previewScroll} showsHorizontalScrollIndicator={false}>
-        {selectedImages.map((img, i) => (
-          <Image key={i} source={{ uri: img.uri }} style={styles.previewImage} />
-        ))}
-      </ScrollView>
+        <TouchableOpacity style={styles.uploadBox} onPress={pickImages}>
+          <Camera size={32} color={COLORS.muted} strokeWidth={2} style={{ marginBottom: SPACING.sm }} />
+          <Text style={styles.uploadText}>
+            {selectedImages.length > 0
+              ? `${selectedImages.length} New Photo${selectedImages.length !== 1 ? 's' : ''} Selected`
+              : isEditMode ? 'Add More Photos' : 'Select Photos'}
+          </Text>
+        </TouchableOpacity>
 
-      {loading ? (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Uploading listing...</Text>
-        </View>
-      ) : (
-        <View style={styles.row}>
-          <TouchableOpacity 
-            style={styles.secondaryButton}
-            onPress={() => transitionToStep(2)}
-          >
-            <Text style={styles.secondaryButtonText}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[formStyles.submitButton, { flex: 1, marginLeft: 12 }]}
-            onPress={handleSubmit}
-          >
-            <Text style={styles.primaryButtonText}>Publish Listing</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  )
+        {selectedImages.length > 0 && (
+          <ScrollView horizontal style={styles.previewScroll} showsHorizontalScrollIndicator={false}>
+            {selectedImages.map((img, i) => (
+              <Image key={`new-${i}`} source={{ uri: img.uri }} style={styles.previewImage} />
+            ))}
+          </ScrollView>
+        )}
+
+        {loading ? (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>{isEditMode ? 'Saving changes...' : 'Uploading listing...'}</Text>
+          </View>
+        ) : (
+          <View style={styles.row}>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => transitionToStep(2)}
+            >
+              <Text style={styles.secondaryButtonText}>Back</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[formStyles.submitButton, { flex: 1, marginLeft: 12 }]}
+              onPress={handleSubmit}
+            >
+              <Text style={styles.primaryButtonText}>{isEditMode ? 'Save Changes' : 'Publish Listing'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    )
+  }
 
   return (
     <View style={[styles.overlay, IS_WEB && styles.overlayWeb]}>
       <View style={styles.modalContainer}>
         <View style={styles.header}>
-          <Text style={styles.title}>Create New Listing</Text>
+          <Text style={styles.title}>{isEditMode ? 'Edit Listing' : 'Create New Listing'}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <X size={16} color={COLORS.muted} strokeWidth={2} />
           </TouchableOpacity>
@@ -566,11 +636,26 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     height: 100,
   },
+  previewImageWrapper: {
+    position: 'relative',
+    marginRight: 12,
+  },
   previewImage: {
     width: 100,
     height: 100,
     borderRadius: 12,
-    marginRight: 12,
+    marginRight: 0,
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   primaryButton: {
     backgroundColor: COLORS.primary,

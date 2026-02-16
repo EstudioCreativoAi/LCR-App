@@ -68,6 +68,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="create-listing" options={{ presentation: 'modal', headerShown: false }} />
+      <Stack.Screen name="edit-listing/[id]" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="notifications" options={{ presentation: 'modal', headerShown: false }} />
       <Stack.Screen name="listing/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="pay/[leaseId]" options={{ headerShown: false, gestureEnabled: false }} />

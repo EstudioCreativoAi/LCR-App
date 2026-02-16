@@ -196,7 +196,7 @@ export default function MyListingsScreen() {
 
   const handleEdit = useCallback(
     (property: Property) => {
-      router.push(`/listing/${property.id}`)
+      router.push(`/edit-listing/${property.id}`)
     },
     [router]
   )
