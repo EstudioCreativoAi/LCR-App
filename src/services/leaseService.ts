@@ -29,6 +29,12 @@ export interface LeaseWithDetails extends Lease {
     id: string
     full_name: string
   }
+  renter?: {
+    id: string
+    full_name: string
+    email: string | null
+    avatar_url: string | null
+  }
 }
 
 export interface LeaseResult<T> {
@@ -85,6 +91,12 @@ export async function fetchLeasesByOwner(
           title,
           address,
           property_images (image_url)
+        ),
+        renter:profiles!leases_renter_id_fkey (
+          id,
+          full_name,
+          email,
+          avatar_url
         )
       `)
       .or(`landlord_id.eq.${ownerId},agent_id.eq.${ownerId}`)

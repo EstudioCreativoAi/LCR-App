@@ -119,9 +119,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="leases"
         options={{
-          title: 'My Leases',
-          tabBarLabel: 'My Leases',
-          href: isRenter ? '/leases' : null,
+          title: 'Leases',
+          tabBarLabel: 'Leases',
           tabBarIcon: ({ color }) => <FileText size={22} color={color} strokeWidth={2} />,
         }}
       />
