@@ -244,6 +244,7 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
     bedrooms: null,
     moveInDate: null,
   })
+  const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest')
 
   const fetchProperties = useCallback(async () => {
     try {
@@ -271,7 +272,9 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
         query = query.lte('available_from', moveInDateStr)
       }
 
-      const { data, error } = isDemo ? { data: null, error: null } : await query.order('created_at', { ascending: false })
+      const orderCol = sortBy === 'newest' ? 'created_at' : 'monthly_rent_mxn'
+      const orderAsc = sortBy === 'price_asc'
+      const { data, error } = isDemo ? { data: null, error: null } : await query.order(orderCol, { ascending: orderAsc })
       
       let finalProperties: Property[] = []
 
@@ -378,7 +381,7 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
     } finally {
       setLoading(false)
     }
-  }, [searchQuery, filters])
+  }, [searchQuery, filters, sortBy])
 
   useEffect(() => {
     fetchProperties()
@@ -424,6 +427,23 @@ export default function PropertyFeed({ role, isDemo }: PropertyFeedProps) {
               </View>
             )}
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.sortContainer}>
+          {(['newest', 'price_asc', 'price_desc'] as const).map((option) => {
+            const label = option === 'newest' ? 'Newest' : option === 'price_asc' ? 'Price ↑' : 'Price ↓'
+            return (
+              <TouchableOpacity
+                key={option}
+                style={[styles.sortChip, sortBy === option && styles.sortChipActive]}
+                onPress={() => setSortBy(option)}
+              >
+                <Text style={[styles.sortChipText, sortBy === option && styles.sortChipTextActive]}>
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
         </View>
 
         {!loading && (
@@ -513,6 +533,36 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: SPACING.md,
     height: 48,
+  },
+  sortContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    gap: 8,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.cardBackground,
+  },
+  sortChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: COLORS.cardBackground,
+    borderWidth: 1,
+    borderColor: COLORS.secondary,
+  },
+  sortChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  sortChipText: {
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: COLORS.muted,
+  },
+  sortChipTextActive: {
+    color: COLORS.white,
+    fontFamily: FONTS.semiBold,
   },
   searchIcon: { fontSize: 16, marginRight: SPACING.sm },
   searchInput: { flex: 1, fontSize: 16, color: COLORS.text, outlineStyle: 'none' } as any,

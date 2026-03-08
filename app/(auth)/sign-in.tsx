@@ -21,6 +21,31 @@ export default function SignInScreen() {
   const [role, setRole] = useState<UserRole>('renter')
   const [loading, setLoading] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+
+  async function handleForgotPassword() {
+    if (!email.trim()) {
+      Alert.alert('Email required', 'Please enter your email address.')
+      return
+    }
+    setLoading(true)
+    try {
+      const redirectTo =
+        typeof window !== 'undefined'
+          ? window.location.origin + '/update-password'
+          : undefined
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo,
+      })
+      if (error) throw error
+      setResetSent(true)
+    } catch (error) {
+      Alert.alert('Error', error instanceof Error ? error.message : 'Failed to send reset email.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   async function handleAuth() {
     if (password.length < 6) {
@@ -109,6 +134,61 @@ export default function SignInScreen() {
     }
   }
 
+  if (showForgotPassword) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.header}>Los Cabos Rentals</Text>
+          <Text style={styles.subHeader}>Reset your password</Text>
+
+          {resetSent ? (
+            <View style={styles.successBox}>
+              <Text style={styles.successText}>
+                Check your email! A password reset link has been sent to {email}.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <Text style={styles.resetInstructions}>
+                Enter your email address and we'll send you a link to reset your password.
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Email address"
+                placeholderTextColor={COLORS.muted}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <TouchableOpacity
+                style={styles.authButton}
+                onPress={handleForgotPassword}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <Text style={styles.authButtonText}>Send Reset Link</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+
+          <TouchableOpacity
+            style={styles.toggleButton}
+            onPress={() => {
+              setShowForgotPassword(false)
+              setResetSent(false)
+            }}
+          >
+            <Text style={styles.toggleText}>Back to Sign In</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -184,6 +264,18 @@ export default function SignInScreen() {
         >
           <Text style={styles.demoButtonText}>Enter Demo</Text>
         </TouchableOpacity>
+
+        {!isSignUp && (
+          <TouchableOpacity
+            style={styles.forgotButton}
+            onPress={() => {
+              setShowForgotPassword(true)
+              setResetSent(false)
+            }}
+          >
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </TouchableOpacity>
+        )}
 
         <TouchableOpacity
           style={styles.toggleButton}
@@ -305,5 +397,35 @@ const styles = StyleSheet.create({
     color: COLORS.text,
     fontFamily: FONTS.semiBold,
     fontSize: 14,
+  },
+  forgotButton: {
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+  },
+  forgotText: {
+    color: COLORS.muted,
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+  },
+  resetInstructions: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.muted,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+    lineHeight: 20,
+  },
+  successBox: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 12,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  successText: {
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+    color: '#2E7D32',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 })
