@@ -65,6 +65,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!isDemo) {
         setSession(s)
         if (s) {
+          setIsLoading(true)
           fetchProfile(s.user.id)
         } else {
           setRole(null)

@@ -1,12 +1,13 @@
 import React from 'react'
 import { Tabs } from 'expo-router'
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useTranslation } from 'react-i18next'
 import { useSession } from '../../src/providers/SessionProvider'
 import { useRouter } from 'expo-router'
 import { COLORS, FONTS, SPACING } from '../../src/theme/theme'
 import i18n from '../../src/i18n'
-import { Home, Search, Heart, Building, Users, FileText, Banknote, User, Bell } from 'lucide-react-native'
+import { Home, Search, Heart, Building, Users, FileText, Banknote, User, Bell, MessageSquare, TrendingUp } from 'lucide-react-native'
 
 function HeaderRight() {
   const { session, signOut } = useSession()
@@ -24,9 +25,10 @@ function HeaderRight() {
 
       <TouchableOpacity
         style={styles.languageToggle}
-        onPress={() => {
+        onPress={async () => {
           const newLang = i18n.language === 'en' ? 'es' : 'en'
-          i18n.changeLanguage(newLang)
+          await i18n.changeLanguage(newLang)
+          await AsyncStorage.setItem('app_language', newLang)
         }}
       >
         <Text style={styles.languageToggleText}>{i18n.language.toUpperCase()}</Text>
@@ -72,12 +74,14 @@ export default function TabsLayout() {
         headerRight: () => <HeaderRight />,
       }}
     >
+      {/* Renter-only tabs */}
       <Tabs.Screen
         name="index"
         options={{
           title: t('common.properties'),
           tabBarLabel: t('common.properties'),
           headerTitle: 'LCR App',
+          href: isRenter ? undefined : null,
           tabBarIcon: ({ color }) => <Home size={22} color={color} strokeWidth={2} />,
         }}
       />
@@ -86,6 +90,7 @@ export default function TabsLayout() {
         options={{
           title: 'Search',
           tabBarLabel: 'Search',
+          href: isRenter ? undefined : null,
           tabBarIcon: ({ color }) => <Search size={22} color={color} strokeWidth={2} />,
         }}
       />
@@ -94,16 +99,26 @@ export default function TabsLayout() {
         options={{
           title: 'Saved',
           tabBarLabel: 'Saved',
-          href: isRenter ? '/saved' : null,
+          href: isRenter ? undefined : null,
           tabBarIcon: ({ color }) => <Heart size={22} color={color} strokeWidth={2} />,
         }}
       />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Messages',
+          tabBarLabel: 'Messages',
+          href: isRenter ? undefined : null,
+          tabBarIcon: ({ color }) => <MessageSquare size={22} color={color} strokeWidth={2} />,
+        }}
+      />
+      {/* Landlord / Agent tabs */}
       <Tabs.Screen
         name="my-listings"
         options={{
           title: 'My Listings',
           tabBarLabel: 'My Listings',
-          href: isLandlord || isAgent ? '/my-listings' : null,
+          href: isLandlord || isAgent ? undefined : null,
           tabBarIcon: ({ color }) => <Building size={22} color={color} strokeWidth={2} />,
         }}
       />
@@ -112,7 +127,7 @@ export default function TabsLayout() {
         options={{
           title: t('common.leads'),
           tabBarLabel: t('common.leads'),
-          href: isLandlord || isAgent ? '/leads' : null,
+          href: isLandlord || isAgent ? undefined : null,
           tabBarIcon: ({ color }) => <Users size={22} color={color} strokeWidth={2} />,
         }}
       />
@@ -125,14 +140,25 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="rental-income"
+        options={{
+          title: 'Rental Income',
+          tabBarLabel: 'Income',
+          href: isLandlord || isAgent ? undefined : null,
+          tabBarIcon: ({ color }) => <TrendingUp size={22} color={color} strokeWidth={2} />,
+        }}
+      />
+      {/* Agent-only */}
+      <Tabs.Screen
         name="commissions"
         options={{
           title: t('common.earnings'),
           tabBarLabel: t('common.earnings'),
-          href: isAgent ? '/commissions' : null,
+          href: isAgent ? undefined : null,
           tabBarIcon: ({ color }) => <Banknote size={22} color={color} strokeWidth={2} />,
         }}
       />
+      {/* All roles */}
       <Tabs.Screen
         name="profile"
         options={{

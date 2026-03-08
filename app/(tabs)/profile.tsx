@@ -10,7 +10,10 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Switch,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import i18n from '../../src/i18n'
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -239,6 +242,35 @@ export default function ProfileScreen() {
 
   // Stamp state
   const [showStamp, setShowStamp] = useState(false)
+
+  // Settings state
+  const [notifMessages, setNotifMessages] = useState(true)
+  const [notifLeads, setNotifLeads] = useState(true)
+  const [showSettings, setShowSettings] = useState(false)
+
+  useEffect(() => {
+    AsyncStorage.multiGet(['notif_messages', 'notif_leads']).then((pairs) => {
+      const map = Object.fromEntries(pairs.map(([k, v]) => [k, v]))
+      if (map.notif_messages !== null) setNotifMessages(map.notif_messages === 'true')
+      if (map.notif_leads !== null) setNotifLeads(map.notif_leads === 'true')
+    })
+  }, [])
+
+  async function handleLanguageToggle() {
+    const newLang = i18n.language === 'en' ? 'es' : 'en'
+    await i18n.changeLanguage(newLang)
+    await AsyncStorage.setItem('app_language', newLang)
+  }
+
+  async function handleNotifMessages(value: boolean) {
+    setNotifMessages(value)
+    await AsyncStorage.setItem('notif_messages', String(value))
+  }
+
+  async function handleNotifLeads(value: boolean) {
+    setNotifLeads(value)
+    await AsyncStorage.setItem('notif_leads', String(value))
+  }
 
   const displayName = profile?.full_name || session?.user.email?.split('@')[0] || 'User'
   const memberSince = profile?.created_at
@@ -636,17 +668,35 @@ export default function ProfileScreen() {
           />
         )}
         <MenuItem
-          label="Notification Preferences"
-          onPress={() =>
-            Alert.alert('Coming Soon', 'Notification settings will be available soon.')
-          }
+          label={`Language: ${i18n.language.toUpperCase()}`}
+          onPress={handleLanguageToggle}
         />
         <MenuItem
-          label="Language"
-          onPress={() =>
-            Alert.alert('Coming Soon', 'Language settings will be available soon.')
-          }
+          label="Notification Preferences"
+          onPress={() => setShowSettings((v) => !v)}
         />
+        {showSettings && (
+          <View style={styles.notifContainer}>
+            <View style={styles.notifRow}>
+              <Text style={styles.notifLabel}>New Messages</Text>
+              <Switch
+                value={notifMessages}
+                onValueChange={handleNotifMessages}
+                trackColor={{ false: COLORS.cardBackground, true: COLORS.primary }}
+                thumbColor={COLORS.white}
+              />
+            </View>
+            <View style={styles.notifRow}>
+              <Text style={styles.notifLabel}>Lead Updates</Text>
+              <Switch
+                value={notifLeads}
+                onValueChange={handleNotifLeads}
+                trackColor={{ false: COLORS.cardBackground, true: COLORS.primary }}
+                thumbColor={COLORS.white}
+              />
+            </View>
+          </View>
+        )}
         <MenuItem label="Sign Out" onPress={handleSignOut} destructive />
       </View>
     </ScrollView>
@@ -1001,5 +1051,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: FONTS.medium,
     color: COLORS.muted,
+  },
+  notifContainer: {
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.sm,
+    backgroundColor: COLORS.cardBackground,
+  },
+  notifRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.white,
+  },
+  notifLabel: {
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+    color: COLORS.text,
   },
 })

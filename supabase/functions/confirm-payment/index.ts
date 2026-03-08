@@ -90,7 +90,13 @@ serve(async (req) => {
         .eq('id', lease.properties.id)
     }
 
-    // 6. Create commission if agent exists (10% of deposit)
+    // 6. Update lease status to active
+    await supabaseClient
+      .from('leases')
+      .update({ status: 'active', updated_at: new Date().toISOString() })
+      .eq('id', lease.id)
+
+    // 6b. Create commission if agent exists (10% of deposit)
     const agentId = lease.properties?.agent_id
     if (agentId) {
       const commissionAmount = payment.amount_mxn * 0.10

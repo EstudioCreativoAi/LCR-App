@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto'
 import React, { useEffect } from 'react'
 import { View, ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import {
   useFonts,
@@ -11,7 +12,7 @@ import {
 } from '@expo-google-fonts/poppins'
 import { SessionProvider, useSession } from '../src/providers/SessionProvider'
 import { COLORS, SPACING, FONTS } from '../src/theme/theme'
-import '../src/i18n'
+import i18n from '../src/i18n'
 
 function RootLayoutNav() {
   const { session, isLoading, hasConfig, enterDemo } = useSession()
@@ -85,6 +86,14 @@ export default function RootLayout() {
     'Poppins-SemiBold': Poppins_600SemiBold,
     'Poppins-Bold': Poppins_700Bold,
   })
+
+  useEffect(() => {
+    AsyncStorage.getItem('app_language').then((lang) => {
+      if (lang && lang !== i18n.language) {
+        i18n.changeLanguage(lang)
+      }
+    })
+  }, [])
 
   if (!fontsLoaded) {
     return (

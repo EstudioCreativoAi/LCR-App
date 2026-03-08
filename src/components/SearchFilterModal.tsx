@@ -8,12 +8,18 @@ import {
   ScrollView,
   Platform,
   Pressable,
+  TextInput,
 } from 'react-native'
 import Slider from '@react-native-community/slider'
-import DateTimePicker from '@react-native-community/datetimepicker'
 import { COLORS, SPACING, FONTS } from '../theme/theme'
 import { formatPrice } from '../utils/currency'
 import { X, Calendar } from 'lucide-react-native'
+
+// Lazy-load DateTimePicker only on native — it doesn't work on web
+let DateTimePicker: any = null
+if (Platform.OS !== 'web') {
+  DateTimePicker = require('@react-native-community/datetimepicker').default
+}
 
 export interface SearchFilters {
   priceMin: number
@@ -210,28 +216,49 @@ export default function SearchFilterModal({
               <Calendar size={18} color={COLORS.text} strokeWidth={2} />
             </TouchableOpacity>
 
-            {showDatePicker && (
-              <DateTimePicker
-                value={moveInDate || new Date()}
-                mode="date"
-                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                minimumDate={new Date()}
-                onChange={(event, selectedDate) => {
-                  setShowDatePicker(Platform.OS === 'ios')
-                  if (selectedDate) {
-                    setMoveInDate(selectedDate)
-                  }
-                }}
-              />
-            )}
-            
-            {Platform.OS === 'ios' && showDatePicker && (
-              <TouchableOpacity 
-                style={styles.doneButton}
-                onPress={() => setShowDatePicker(false)}
-              >
-                <Text style={styles.doneButtonText}>Done</Text>
-              </TouchableOpacity>
+            {Platform.OS === 'web' ? (
+              showDatePicker && (
+                <TextInput
+                  style={styles.webDateInput}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={COLORS.muted}
+                  defaultValue={moveInDate ? moveInDate.toISOString().split('T')[0] : ''}
+                  onChangeText={(text) => {
+                    const parsed = new Date(text)
+                    if (!isNaN(parsed.getTime())) {
+                      setMoveInDate(parsed)
+                      setShowDatePicker(false)
+                    }
+                  }}
+                  keyboardType="numeric"
+                  autoFocus
+                />
+              )
+            ) : (
+              <>
+                {showDatePicker && DateTimePicker && (
+                  <DateTimePicker
+                    value={moveInDate || new Date()}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    minimumDate={new Date()}
+                    onChange={(event: any, selectedDate?: Date) => {
+                      setShowDatePicker(Platform.OS === 'ios')
+                      if (selectedDate) {
+                        setMoveInDate(selectedDate)
+                      }
+                    }}
+                  />
+                )}
+                {Platform.OS === 'ios' && showDatePicker && (
+                  <TouchableOpacity
+                    style={styles.doneButton}
+                    onPress={() => setShowDatePicker(false)}
+                  >
+                    <Text style={styles.doneButtonText}>Done</Text>
+                  </TouchableOpacity>
+                )}
+              </>
             )}
           </View>
 
@@ -411,6 +438,18 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontSize: 16,
     fontFamily: FONTS.semiBold,
+  },
+  webDateInput: {
+    marginTop: SPACING.sm,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.cardBackground,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.secondary,
+    fontSize: 16,
+    fontFamily: FONTS.medium,
+    color: COLORS.text,
   },
   actionButtons: {
     flexDirection: 'row',
