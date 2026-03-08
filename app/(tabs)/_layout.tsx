@@ -144,7 +144,7 @@ export default function TabsLayout() {
         options={{
           title: 'Rental Income',
           tabBarLabel: 'Income',
-          href: isLandlord || isAgent ? undefined : null,
+          href: isLandlord ? undefined : null,
           tabBarIcon: ({ color }) => <TrendingUp size={22} color={color} strokeWidth={2} />,
         }}
       />
